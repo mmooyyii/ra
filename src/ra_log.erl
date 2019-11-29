@@ -734,7 +734,6 @@ truncate_cache(FromIdx, ToIdx,
                #?MODULE{cache = Cache0,
                         last_index = LastIdx} = State,
                Effects) ->
-    ?DEBUG("FromIDx ~b ToIdx ~b LastIdx ~b", [FromIdx, ToIdx, LastIdx]),
     Cache = case ToIdx - FromIdx < LastIdx - ToIdx of
                 true ->
                     %% if the range to be deleted is smaller than the
