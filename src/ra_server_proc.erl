@@ -1020,8 +1020,8 @@ handle_effect(RaftState, {aux, Cmd}, EventType, State0, Actions0) ->
     {_, ServerState, Effects} = ra_server:handle_aux(RaftState, cast, Cmd,
                                                      State0#state.server_state),
     {State, Actions} =
-        ?HANDLE_EFFECTS(Effects, EventType,
-                        State0#state{server_state = ServerState}),
+        handle_effects(RaftState, Effects,  EventType,
+                       State0#state{server_state = ServerState}),
     {State, Actions0 ++ Actions};
 handle_effect(_, {notify, Who, Correlations}, _, State, Actions) ->
     %% should only be done by leader
@@ -1443,9 +1443,9 @@ handle_node_status_change(Node, Status, InfoList, RaftState,
                                                            S0),
                   {R, S, E0 ++ E}
           end, {RaftState, ServerState0, []}, Comps),
-    {State, Actions} = ?HANDLE_EFFECTS(Effects, cast,
-                                       State0#state{server_state = ServerState,
-                                                    monitors = Monitors}),
+    {State, Actions} = handle_effects(RaftState, Effects, cast,
+                                      State0#state{server_state = ServerState,
+                                                   monitors = Monitors}),
     {keep_state, State, Actions}.
 
 handle_process_down(Pid, Info, RaftState,
@@ -1461,7 +1461,7 @@ handle_process_down(Pid, Info, RaftState,
       end, {ServerState0, []}, Comps),
 
     {State, Actions} =
-    ?HANDLE_EFFECTS(Effects, cast,
-                    State0#state{server_state = ServerState,
-                                 monitors = Monitors}),
+        handle_effects(RaftState, Effects, cast,
+                       State0#state{server_state = ServerState,
+                                    monitors = Monitors}),
     {keep_state, State, Actions}.

@@ -912,18 +912,18 @@ handle_follower(#append_entries_rpc{term = Term,
                     end
             end;
         {missing, Log0} ->
-            Reply = append_entries_reply(Term, false, State0),
+            State = State0#{log => Log0},
+            Reply = append_entries_reply(Term, false, State),
             ?INFO("~s: follower did not have entry at ~b in ~b."
                   " Requesting ~w from ~b~n",
                   [LogId, PLIdx, PLTerm, LeaderId,
                    Reply#append_entries_reply.next_index]),
             Effects = [cast_reply(Id, LeaderId, Reply) | Effects0],
             {await_condition,
-             State0#{log => Log0,
-                     condition => follower_catchup_cond_fun(missing),
-                     % repeat reply effect on condition timeout
-                     condition_timeout_changes => #{effects => Effects,
-                                                    transition_to => follower}},
+             State#{condition => follower_catchup_cond_fun(missing),
+                    % repeat reply effect on condition timeout
+                    condition_timeout_changes => #{effects => Effects,
+                                                   transition_to => follower}},
              Effects};
         {term_mismatch, OtherTerm, Log0} ->
             %% NB: this is the commit index before update
@@ -1109,8 +1109,8 @@ handle_receive_snapshot(#install_snapshot_rpc{term = Term,
     case ChunkFlag of
         last ->
             %% this is the last chunk so we can "install" it
-            Log = ra_log:install_snapshot({LastIndex, LastTerm},
-                                          SnapState, Log0),
+            {Log, Effs} = ra_log:install_snapshot({LastIndex, LastTerm},
+                                                  SnapState, Log0),
             {#{cluster := ClusterIds}, MacState} = ra_log:recover_snapshot(Log),
             State = State0#{log => Log,
                             current_term => Term,
@@ -1120,7 +1120,7 @@ handle_receive_snapshot(#install_snapshot_rpc{term = Term,
                             machine_state => MacState},
             %% it was the last snapshot chunk so we can revert back to
             %% follower status
-            {follower, persist_last_applied(State), [{reply, Reply}]};
+            {follower, persist_last_applied(State), [{reply, Reply} | Effs]};
         next ->
             Log = ra_log:set_snapshot_state(SnapState, Log0),
             State = State0#{log => Log},
