@@ -441,9 +441,13 @@ handle_aux(_, cast, Cmd, {Name, Use0}, Log, _) ->
               emit ->
                   true = ets:insert(ra_fifo_usage,
                                     {Name, utilisation(Use0)}),
+                  Use0;
+              _ ->
                   Use0
           end,
-    {no_reply, {Name, Use}, Log}.
+    {no_reply, {Name, Use}, Log};
+handle_aux(_, _, _, Aux, Log, _) ->
+    {no_reply, Aux, Log}.
 
 %%% Queries
 

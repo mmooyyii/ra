@@ -612,7 +612,7 @@ overview(#?MODULE{last_index = LastIndex,
       last_written_index_term => LWIT,
       num_segments => length(ra_log_reader:segment_refs(Reader)),
       %%TODO: re-introduce open segment count
-      % open_segments => ra_flru:size(OpenSegs),
+      open_segments => ra_log_reader:num_open_segments(Reader),
       snapshot_index => case ra_snapshot:current(SnapshotState) of
                             undefined -> undefined;
                             {I, _} -> I
@@ -659,7 +659,9 @@ release_resources(MaxOpenSegments,
     % deliberately ignoring return value
     _ = ra_log_reader:close(Reader),
     %% open a new segment with the new max open segment value
-    State#?MODULE{reader = ra_log_reader:init(UId, MaxOpenSegments, [])}.
+    State#?MODULE{reader =
+                  ra_log_reader:init(UId, MaxOpenSegments,
+                                     ra_log_reader:segment_refs(Reader))}.
 
 register_reader(Pid, #?MODULE{readers = Readers,
                               reader = Reader} = State) ->

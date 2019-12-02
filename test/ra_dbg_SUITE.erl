@@ -5,8 +5,8 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
-all() ->
-  [replay, filter_entry_duplicate].
+all() -> [replay,
+          filter_entry_duplicate].
 
 init_per_suite(Config) ->
   Config.

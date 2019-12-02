@@ -586,7 +586,7 @@ snapshot_installation(Config) ->
     {ok, SnapState1} = ra_snapshot:begin_accept(Meta, SnapState0),
     {ok, SnapState} = ra_snapshot:accept_chunk(Chunk, 1, last, SnapState1),
 
-    Log3 = ra_log:install_snapshot({15, 2}, SnapState, Log2),
+    {Log3, _} = ra_log:install_snapshot({15, 2}, SnapState, Log2),
     {15, _} = ra_log:last_index_term(Log3),
     {15, _} = ra_log:last_written(Log3),
     #{cache_size := 0} = ra_log:overview(Log3),
@@ -628,7 +628,7 @@ append_after_snapshot_installation(Config) ->
     SnapState0 = ra_log:snapshot_state(Log1),
     {ok, SnapState1} = ra_snapshot:begin_accept(Meta, SnapState0),
     {ok, SnapState} = ra_snapshot:accept_chunk(Chunk, 1, last, SnapState1),
-    Log2 = ra_log:install_snapshot({15, 2}, SnapState, Log1),
+    {Log2, _} = ra_log:install_snapshot({15, 2}, SnapState, Log1),
     {15, _} = ra_log:last_index_term(Log2),
     {15, _} = ra_log:last_written(Log2),
 
@@ -660,7 +660,7 @@ written_event_after_snapshot_installation(Config) ->
     SnapState0 = ra_log:snapshot_state(Log1),
     {ok, SnapState1} = ra_snapshot:begin_accept(Meta, SnapState0),
     {ok, SnapState} = ra_snapshot:accept_chunk(Chunk, 1, last, SnapState1),
-    Log2 = ra_log:install_snapshot({SnapIdx, 2}, SnapState, Log1),
+    {Log2, _} = ra_log:install_snapshot({SnapIdx, 2}, SnapState, Log1),
     {SnapIdx, _} = ra_log:last_index_term(Log2),
     {SnapIdx, _} = ra_log:last_written(Log2),
     NextIdx = SnapIdx + 1,

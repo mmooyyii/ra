@@ -11,7 +11,8 @@
          update_first_index/2,
          read/3,
          fetch_term/2,
-         emit/2
+         emit/2,
+         num_open_segments/1
          ]).
 
 -include("ra.hrl").
@@ -152,6 +153,10 @@ fetch_term(Idx, #?STATE{cfg = #cfg{uid = UId}} = State0) ->
                     {Term, State0}
             end
     end.
+
+-spec num_open_segments(state()) -> non_neg_integer().
+num_open_segments(#?MODULE{open_segments = OpenSegs}) ->
+    ra_flru:size(OpenSegs).
 
 %% LOCAL
 

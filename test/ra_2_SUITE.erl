@@ -270,6 +270,7 @@ cluster_cannot_be_deleted_in_minority(Config) ->
     ok.
 
 server_restart_after_application_restart(Config) ->
+    ok = logger:set_primary_config(level, all),
     ServerId = ?config(server_id, Config),
     ClusterName = ?config(cluster_name, Config),
     ok = start_cluster(ClusterName, [ServerId]),
