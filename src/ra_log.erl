@@ -63,12 +63,17 @@
 
 -type event() :: {ra_log_event, event_body()}.
 
--type effect() :: {delete_snapshot, Dir :: file:filename(), ra_idxterm()}.
+-type effect() ::
+    {delete_snapshot, Dir :: file:filename(), ra_idxterm()} |
+    {monitor, process, log, pid()} |
+    ra_snapshot:effect() |
+    ra_server:effect().
+
 %% logs can have effects too so that they can be coordinated with other state
 %% such as avoiding to delete old snapshots whilst they are still being
 %% replicated
 
--type effects() :: [effect() | ra_snapshot:effect()].
+-type effects() :: [effect()].
 
 -record(?MODULE,
         {uid :: ra_uid(),
@@ -663,6 +668,8 @@ release_resources(MaxOpenSegments,
                   ra_log_reader:init(UId, MaxOpenSegments,
                                      ra_log_reader:segment_refs(Reader))}.
 
+-spec register_reader(pid(), state()) ->
+    {state(), effects()}.
 register_reader(Pid, #?MODULE{readers = Readers,
                               reader = Reader} = State) ->
     Effs = ra_log_reader:emit([Pid], Reader),
@@ -834,19 +841,6 @@ resend_from0(Idx, #?MODULE{last_resend_time = LastResend,
             State
     end.
 
-
-compact_seg_refs(SegRefs) ->
-    lists:reverse(
-      lists:foldl(fun ({_, _, File} = S, Acc) ->
-                          case lists:any(fun({_, _, F}) when F =:= File ->
-                                                 true;
-                                            (_) -> false
-                                         end, Acc) of
-                              true -> Acc;
-                              false -> [S | Acc]
-                          end
-                  end, [], SegRefs)).
-
 verify_entries(_, []) ->
     ok;
 verify_entries(Idx, [{NextIdx, _, _} | Tail]) when Idx + 1 == NextIdx ->
@@ -947,12 +941,6 @@ closed_mem_tables(Id) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
-
-compact_seg_refs_test() ->
-    % {From, To, File}
-    Refs = [{10, 100, "2"}, {10, 75, "2"}, {10, 50, "2"}, {1, 9, "1"}],
-    [{10, 100, "2"}, {1, 9, "1"}] = compact_seg_refs(Refs),
-    ok.
 
 cache_take0_test() ->
     Cache = #{1 => {a}, 2 => {b}, 3 => {c}},

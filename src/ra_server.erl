@@ -69,7 +69,7 @@
       aux_state => term(),
       condition => ra_await_condition_fun(),
       condition_timeout_changes => #{transition_to := ra_state(),
-                                     effects := [ra_effect()]},
+                                     effects := [effect()]},
       pre_vote_token => reference(),
       query_index := non_neg_integer(),
       queries_waiting_heartbeats := queue:queue({non_neg_integer(), consistent_query_ref()}),
@@ -123,7 +123,7 @@
                          #install_snapshot_result{} |
                          #pre_vote_result{}.
 
--type ra_effect() ::
+-type effect() ::
     ra_machine:effect() |
     ra_log:effect() |
     {reply, ra_reply_body()} |
@@ -142,7 +142,7 @@
     {record_leader_msg, ra_server_id()} |
     start_election_timeout.
 
--type ra_effects() :: [ra_effect()].
+-type effects() :: [effect()].
 
 -type simple_apply_fun(State) :: fun((term(), State) -> State).
 -type ra_event_formatter_fun() ::
@@ -191,7 +191,9 @@
               command_meta/0,
               command_correlation/0,
               command_reply_mode/0,
-              ra_event_formatter_fun/0
+              ra_event_formatter_fun/0,
+              effect/0,
+              effects/0
              ]).
 
 -define(AER_CHUNK_SIZE, 25).
@@ -308,7 +310,7 @@ recover(#{id := {_, _, LogId},
     State#{log => Log}.
 
 -spec handle_leader(ra_msg(), ra_server_state()) ->
-    {ra_state(), ra_server_state(), ra_effects()}.
+    {ra_state(), ra_server_state(), effects()}.
 handle_leader({PeerId, #append_entries_reply{term = Term, success = true,
                                              next_index = NextIdx,
                                              last_index = LastIdx}},
@@ -675,7 +677,7 @@ handle_leader(Msg, State) ->
 
 
 -spec handle_candidate(ra_msg() | election_timeout, ra_server_state()) ->
-    {ra_state(), ra_server_state(), ra_effects()}.
+    {ra_state(), ra_server_state(), effects()}.
 handle_candidate(#request_vote_result{term = Term, vote_granted = true},
                  #{current_term := Term,
                    votes := Votes,
@@ -777,7 +779,7 @@ handle_candidate(Msg, State) ->
     {candidate, State, []}.
 
 -spec handle_pre_vote(ra_msg(), ra_server_state()) ->
-    {ra_state(), ra_server_state(), ra_effects()}.
+    {ra_state(), ra_server_state(), effects()}.
 handle_pre_vote(#append_entries_rpc{term = Term} = Msg,
                 #{current_term := CurTerm} = State0)
   when Term >= CurTerm ->
@@ -853,7 +855,7 @@ handle_pre_vote(Msg, State) ->
 
 
 -spec handle_follower(ra_msg(), ra_server_state()) ->
-    {ra_state(), ra_server_state(), ra_effects()}.
+    {ra_state(), ra_server_state(), effects()}.
 handle_follower(#append_entries_rpc{term = Term,
                                     leader_id = LeaderId,
                                     leader_commit = LeaderCommit,
@@ -1143,7 +1145,7 @@ handle_receive_snapshot(Msg, State) ->
     {receive_snapshot, State, []}.
 
 -spec handle_await_condition(ra_msg(), ra_server_state()) ->
-    {ra_state(), ra_server_state(), ra_effects()}.
+    {ra_state(), ra_server_state(), effects()}.
 handle_await_condition(#request_vote_rpc{} = Msg, State) ->
     {follower, State, [{next_event, Msg}]};
 handle_await_condition(election_timeout, State) ->
@@ -1180,14 +1182,14 @@ process_new_leader_queries(#{pending_consistent_queries := Pending,
              queries_waiting_heartbeats => queue:new()},
      From0 ++ From1}.
 
--spec tick(ra_server_state()) -> ra_effects().
+-spec tick(ra_server_state()) -> effects().
 tick(#{effective_machine_module := MacMod,
        machine_state := MacState}) ->
     Now = os:system_time(millisecond),
     ra_machine:tick(MacMod, Now, MacState).
 
 -spec handle_state_enter(ra_state() | eol, ra_server_state()) ->
-    {ra_server_state() | eol, ra_effects()}.
+    {ra_server_state() | eol, effects()}.
 handle_state_enter(RaftState, #{effective_machine_module := MacMod,
                                 machine_state := MacState} = State) ->
     {become(RaftState, State),
@@ -1539,7 +1541,7 @@ make_append_entries_rpc(PeerId, PrevIdx, PrevTerm, Num,
 % at this index.
 -spec update_release_cursor(ra_index(),
                             term(), ra_server_state()) ->
-    {ra_server_state(), ra_effects()}.
+    {ra_server_state(), effects()}.
 update_release_cursor(Index, MacState,
                       State = #{log := Log0, cluster := Cluster}) ->
     MacVersion = index_machine_version(Index, State),
@@ -1589,7 +1591,7 @@ peer_snapshot_process_exited(SnapshotPid, #{cluster := Peers} = State) ->
 -spec handle_down(ra_state(),
                   machine | snapshot_sender | snapshot_writer | aux,
                   pid(), term(), ra_server_state()) ->
-    {ra_state(), ra_server_state(), ra_effects()}.
+    {ra_state(), ra_server_state(), effects()}.
 handle_down(leader, machine, Pid, Info, State)
   when is_pid(Pid) ->
     %% commit command to be processed by state machine
@@ -1627,7 +1629,7 @@ handle_down(RaftState, Type, Pid, Info, #{id := {_, _, LogId}} = State) ->
 -spec handle_node_status(ra_state(), machine | aux,
                          node(), nodeup | nodedown,
                          term(), ra_server_state()) ->
-    {ra_state(), ra_server_state(), ra_effects()}.
+    {ra_state(), ra_server_state(), effects()}.
 handle_node_status(leader, machine, Node, Status, _Infos, State)
   when is_atom(Node) ->
     %% commit command to be processed by state machine
@@ -2453,7 +2455,7 @@ take_from_queue_while(Fun, Queue, Result) ->
 
 -spec apply_consistent_queries_effects([consistent_query_ref()],
                                        ra_server_state()) ->
-    ra_effects().
+    effects().
 apply_consistent_queries_effects(QueryRefs,
                                  #{last_applied := LastApplied} = State) ->
     lists:map(fun({_, _, ReadCommitIndex} = QueryRef) ->
@@ -2461,7 +2463,7 @@ apply_consistent_queries_effects(QueryRefs,
                       consistent_query_reply(QueryRef, State)
               end, QueryRefs).
 
--spec consistent_query_reply(consistent_query_ref(), ra_server_state()) -> ra_effect().
+-spec consistent_query_reply(consistent_query_ref(), ra_server_state()) -> effect().
 consistent_query_reply({From, QueryFun, _ReadCommitIndex},
                        #{id := {Id, _, _},
                          machine_state := MacState,

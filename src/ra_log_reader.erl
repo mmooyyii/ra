@@ -44,16 +44,20 @@
 
 %% PUBLIC
 
+-spec init(ra_uid(), non_neg_integer(), [segment_ref()]) -> state().
 init(UId, MaxOpen, SegRefs) ->
     #?STATE{cfg = #cfg{uid = UId,
                        directory = ra_env:server_data_dir(UId)},
             open_segments = ra_flru:new(MaxOpen, fun flru_handler/1),
             segment_refs = SegRefs}.
 
+-spec close(state()) -> ok.
 close(#?STATE{open_segments = Open}) ->
     _ = ra_flru:evict_all(Open),
     ok.
 
+-spec update_segments([segment_ref()], state()) ->
+    state().
 update_segments(NewSegmentRefs,
                 #?STATE{open_segments = Open0,
                         segment_refs = SegmentRefs0} = State) ->
@@ -70,12 +74,16 @@ update_segments(NewSegmentRefs,
     State#?MODULE{segment_refs = SegmentRefs,
                   open_segments = Open}.
 
+-spec handle_log_update(ra_index(), [segment_ref()], state()) ->
+    state().
 handle_log_update(_FirstIdx, SegRefs,
                   #?STATE{open_segments = Open0} = State) ->
     Open = ra_flru:evict_all(Open0),
     State#?MODULE{segment_refs = SegRefs,
                   open_segments = Open}.
 
+-spec update_first_index(ra_index(), state()) ->
+    {state(), [segment_ref()]}.
 update_first_index(Idx, #?STATE{segment_refs = SegRefs0,
                                 open_segments = OpenSegs0} = State) ->
     case lists:partition(fun({_, To, _}) when To > Idx -> true;
@@ -98,6 +106,7 @@ update_first_index(Idx, #?STATE{segment_refs = SegRefs0,
              Obsolete}
     end.
 
+-spec emit([pid()], state()) -> ra_server:effects().
 emit(Pids, #?STATE{cfg = #cfg{uid = UId},
                    first_index = Idx,
                    segment_refs = SefRefs}) ->
@@ -105,6 +114,7 @@ emit(Pids, #?STATE{cfg = #cfg{uid = UId},
       [ra_event, local]} || P <- Pids].
 
 
+-spec segment_refs(state()) -> [segment_ref()].
 segment_refs(#?STATE{segment_refs = SegmentRefs}) ->
     SegmentRefs.
 
@@ -140,6 +150,7 @@ read(_From, _To, State) ->
 
 
 
+-spec fetch_term(ra_index(), state()) -> {ra_index(), state()}.
 fetch_term(Idx, #?STATE{cfg = #cfg{uid = UId}} = State0) ->
     case ets:lookup(ra_log_open_mem_tables, UId) of
         [{_, From, To, Tid}] when Idx >= From andalso Idx =< To ->
@@ -369,6 +380,12 @@ closed_mem_tbl_take_test() ->
     {Entries2, _, undefined} = closed_mem_tbl_take(test_id, {8, 10}, [], []),
     {[{9, 2, "9"}], _, undefined} = closed_mem_tbl_take(test_id, {9, 9},
                                                         [], []),
+    ok.
+
+compact_seg_refs_test() ->
+    % {From, To, File}
+    Refs = [{10, 100, "2"}, {10, 75, "2"}, {10, 50, "2"}, {1, 9, "1"}],
+    [{10, 100, "2"}, {1, 9, "1"}] = compact_seg_refs(Refs),
     ok.
 
 -endif.
