@@ -29,6 +29,7 @@
          derive_safe_string/2,
          validate_base64uri/1,
          partition_parallel/2,
+         partition_parallel/3,
          retry/2,
          retry/3,
          write_file/2
@@ -247,11 +248,14 @@ derive_safe_string(S, Num) ->
      string:slice(F(string:next_grapheme(S), []), 0, Num).
 
 partition_parallel(F, Es) ->
+    partition_parallel(F, Es, 60000).
+
+partition_parallel(F, Es, Timeout) ->
     Parent = self(),
     Running = [{spawn_monitor(
                   fun() -> Parent ! {self(), F(E)} end), E}
                || E <- Es],
-    collect(Running, {[], []}, 60000).
+    collect(Running, {[], []}, Timeout).
 
 collect([], Acc, _Timeout) ->
     Acc;

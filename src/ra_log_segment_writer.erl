@@ -123,7 +123,7 @@ handle_cast({mem_tables, Tables, WalFile}, State0) ->
                 fun (E) ->
                         ok = do_segment(E, State0),
                         true
-                end, Tables),
+                end, Tables, infinity),
     % delete wal file once done
     % TODO: test scenario when server crashes after segments but before
     % deleting walfile
