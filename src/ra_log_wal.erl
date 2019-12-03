@@ -189,7 +189,7 @@ init(#{dir := Dir} = Conf0) ->
       write_strategy := WriteStrategy,
       sync_method := SyncMethod} = merge_conf_defaults(Conf0),
     process_flag(trap_exit, true),
-    % TODO: test that off_heap is actuall beneficial
+    % TODO: test that off_heap is actually beneficial
     % given ra_log_wal is effectively a fan-in sink it is likely that it will
     % at times receive large number of messages from a large number of
     % writers

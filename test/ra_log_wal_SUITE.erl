@@ -535,12 +535,10 @@ start_profile(Config, Modules) ->
 
 stop_profile(Config) ->
     Case = ?config(test_case, Config),
-    ct:pal("Stopping profiling for ~p~n", [Case]),
-    lg:stop(),
-    % this segfaults
-    % timer:sleep(2000),
     Dir = ?config(priv_dir, Config),
     Name = filename:join([Dir, "lg_" ++ atom_to_list(Case)]),
+    ct:pal("Stopping profiling for ~p in ~w~n", [Case, Dir]),
+    lg:stop(),
     lg_callgrind:profile_many(Name ++ ".gz.*", Name ++ ".out",#{}),
     ok.
 

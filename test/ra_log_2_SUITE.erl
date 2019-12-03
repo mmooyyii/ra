@@ -47,6 +47,7 @@ all_tests() ->
      updated_segment_can_be_read,
      open_segments_limit,
      external_reader
+     % profile_segment_writer
     ].
 
 groups() ->
@@ -924,6 +925,51 @@ external_reader(Config) ->
     timer:sleep(2000),
     ok.
 
+profile_segment_writer(Config) ->
+    UId = ?config(uid, Config),
+    Max = 3,
+    Log0 = ra_log:init(#{uid => UId,
+                         max_open_segments => Max}),
+   
+    MsgBody = crypto:strong_rand_bytes(1000),
+    % write a few entries
+    Term = {'$usr',
+            #{ts => 1575300194296},
+            {append,
+             {basic_message,
+              {resource,<<"/">>,exchange,<<"direct">>},
+              [<<"7aa87178-0288-4f98-a105-9aca3b41b37d">>],
+              {content,60,
+               {'P_basic',undefined,undefined,undefined,undefined,
+                undefined,undefined,undefined,undefined,undefined,
+                undefined,undefined,undefined,undefined,undefined},
+               <<0,0>>,
+               rabbit_framing_amqp_0_9_1,
+               [<<0,10,242,124,0,1,117,123,43,76,248,130>>]},
+              MsgBody,
+              false}},
+            {notify,717437,self()}},
+
+    Log1 = append_n(1, 100001, 1, Term, Log0),
+    assert_log_events(Log1, fun(L) ->
+                                    ra_log:last_written(L) == {100000, 1}
+                            end),
+
+    start_profile(Config, [ra_log_segment_writer,
+                           ra_log_segment,
+                           ra_file_handle,
+                           file,
+                           ets
+                          ]),
+
+    ok = ra_log_wal:force_roll_over(ra_log_wal),
+    %% this should result in a few segments
+    %% validate as this read all of them
+    _Log2 = wait_for_segments(Log1, 20000),
+    stop_profile(Config),
+    _Segs = find_segments(Config),
+    ok.
+
 validate_read(To, To, _Term, Log0) ->
     Log0;
 validate_read(From, To, Term, Log0) ->
@@ -941,7 +987,6 @@ append_and_roll(From, To, Term, Log0) ->
     ok = ra_log_wal:force_roll_over(ra_log_wal),
     assert_log_events(Log1, fun(L) ->
                                     ra_log:last_written(L) == {To-1, Term}
-
                             end).
 
 append_and_roll_no_deliver(From, To, Term, Log0) ->
@@ -968,6 +1013,12 @@ append_n(To, To, _Term, Log) ->
 append_n(From, To, Term, Log0) ->
     Log = ra_log:append({From, Term, <<From:64/integer>>}, Log0),
     append_n(From+1, To, Term, Log).
+
+append_n(To, To, _Term, _Data,  Log) ->
+    Log;
+append_n(From, To, Term, Data, Log0) ->
+    Log = ra_log:append({From, Term, Data}, Log0),
+    append_n(From+1, To, Term, Data, Log).
 
 write_n(From, To, Term, Log0) ->
     Entries = [{X, Term, <<X:64/integer>>} ||
@@ -1072,6 +1123,7 @@ empty_mailbox(T) ->
     after T ->
               ok
     end.
+
 start_profile(Config, Modules) ->
     Dir = ?config(priv_dir, Config),
     Case = ?config(test_case, Config),

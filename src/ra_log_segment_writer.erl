@@ -40,7 +40,8 @@
 %%%===================================================================
 
 start_link(Config) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config],
+                          [{hibernate_after, 1000}]).
 
 
 accept_mem_tables(Tables, WalFile) ->
@@ -117,7 +118,12 @@ segments_for(UId, #state{data_dir = DataDir}) ->
     SegFiles.
 
 handle_cast({mem_tables, Tables, WalFile}, State0) ->
-    State = lists:foldl(fun do_segment/2, State0, Tables),
+    %% TODO: handle errors and exits
+    {_, []} = ra_lib:partition_parallel(
+                fun (E) ->
+                        ok = do_segment(E, State0),
+                        true
+                end, Tables),
     % delete wal file once done
     % TODO: test scenario when server crashes after segments but before
     % deleting walfile
@@ -133,8 +139,8 @@ handle_cast({mem_tables, Tables, WalFile}, State0) ->
     _ = file:delete(WalFile),
     %% ensure we release any bin refs that might have been acquired during
     %% segment write
-    true = erlang:garbage_collect(),
-    {noreply, State};
+    % true = erlang:garbage_collect(),
+    {noreply, State0, hibernate};
 handle_cast({truncate_segments, Who, {_From, _To, Name} = SegRef},
             #state{segment_conf = SegConf} = State0) ->
     %% remove all segments below the provided SegRef
@@ -193,7 +199,7 @@ get_overview(#state{data_dir = Dir,
 
 do_segment({ServerUId, StartIdx0, EndIdx, Tid},
            #state{data_dir = DataDir,
-                  segment_conf = SegConf} = State) ->
+                  segment_conf = SegConf}) ->
     Dir = filename:join(DataDir, binary_to_list(ServerUId)),
 
     case open_file(Dir, SegConf) of
@@ -203,7 +209,7 @@ do_segment({ServerUId, StartIdx0, EndIdx, Tid},
             %% clean up the tables for this process
             _ = ets:delete(Tid),
             _ = clean_closed_mem_tables(ServerUId, Tid),
-            State;
+            ok;
         Segment0 ->
             case append_to_segment(ServerUId, Tid, StartIdx0, EndIdx,
                                    Segment0, SegConf) of
@@ -211,7 +217,7 @@ do_segment({ServerUId, StartIdx0, EndIdx, Tid},
                     ?WARN("segment_writer: skipping segments for ~w as
                            directory ~s disappeared whilst writing~n",
                            [ServerUId, Dir]),
-                    State;
+                    ok;
                 {Segment1, Closed0} ->
                     % fsync
                     {ok, Segment} = ra_log_segment:sync(Segment1),
@@ -229,7 +235,7 @@ do_segment({ServerUId, StartIdx0, EndIdx, Tid},
                     _ = ra_log_segment:close(Segment),
 
                     ok = send_segments(ServerUId, Tid, SegRefs),
-                    State
+                    ok
             end
     end.
 
@@ -276,7 +282,7 @@ append_to_segment(_, _, StartIdx, EndIdx, Seg, Closed, _)
     {Seg, Closed};
 append_to_segment(UId, Tid, Idx, EndIdx, Seg0, Closed, SegConf) ->
     [{_, Term, Data0}] = ets:lookup(Tid, Idx),
-    Data = term_to_binary(Data0),
+    Data = to_binary(Data0),
     case ra_log_segment:append(Seg0, Idx, Term, Data) of
         {ok, Seg} ->
             append_to_segment(UId, Tid, Idx+1, EndIdx, Seg, Closed, SegConf);
@@ -299,6 +305,9 @@ append_to_segment(UId, Tid, Idx, EndIdx, Seg0, Closed, SegConf) ->
                                       [Seg0 | Closed], SegConf)
             end
     end.
+
+to_binary(Term) ->
+    term_to_binary(Term).
 
 find_segment_files(Dir) ->
     lists:reverse(
