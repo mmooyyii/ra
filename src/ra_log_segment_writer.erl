@@ -23,6 +23,7 @@
          ]).
 
 -record(state, {data_dir :: file:filename(),
+                counter :: counters:counter_ref(),
                 segment_conf = #{} :: ra_log_segment:ra_log_segment_options()}).
 
 -include("ra.hrl").
@@ -100,8 +101,10 @@ await(SegWriter)  ->
 
 init([#{data_dir := DataDir} = Conf]) ->
     process_flag(trap_exit, true),
+    CRef = ra_counters:new(?MODULE, 2),
     SegmentConf = maps:get(segment_conf, Conf, #{}),
     {ok, #state{data_dir = DataDir,
+                counter = CRef,
                 segment_conf = SegmentConf}}.
 
 handle_call(await, _From, State) ->
@@ -224,7 +227,10 @@ do_segment({ServerUId, StartIdx0, EndIdx, Tid},
 
                     % notify writerid of new segment update
                     % includes the full range of the segment
-                    ClosedSegRefs = [ra_log_segment:segref(S) || S <- Closed0],
+                    % filter out any undefined segrefs
+                    ClosedSegRefs = [ra_log_segment:segref(S)
+                                     || S <- Closed0,
+                                        is_tuple(S)],
                     SegRefs = case ra_log_segment:segref(Segment) of
                                   undefined ->
                                       ClosedSegRefs;
