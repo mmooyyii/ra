@@ -612,9 +612,8 @@ new_uid(Source) when is_binary(Source) ->
 overview() ->
     #{node => node(),
       servers => ra_directory:overview(),
-      wal => #{max_batch_size =>
-               lists:max([X || {X, _} <- ets:tab2list(ra_log_wal_metrics)]),
-               status => lists:nth(5, element(4, sys:get_status(ra_log_wal))),
+      counters => ra_counters:overview(),
+      wal => #{status => lists:nth(5, element(4, sys:get_status(ra_log_wal))),
                open_mem_tables => ets:info(ra_log_open_mem_tables, size),
                closed_mem_tables => ets:info(ra_log_closed_mem_tables, size)},
       segment_writer => ra_log_segment_writer:overview()

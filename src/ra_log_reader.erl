@@ -328,15 +328,17 @@ closed_mem_table_term_query0(Idx, [_ | Tail]) ->
 
 compact_seg_refs(SegRefs) ->
     lists:reverse(
-      lists:foldl(fun ({_, _, File} = S, Acc) ->
-                          case lists:any(fun({_, _, F}) when F =:= File ->
-                                                 true;
-                                            (_) -> false
-                                         end, Acc) of
-                              true -> Acc;
-                              false -> [S | Acc]
-                          end
-                  end, [], SegRefs)).
+      lists:foldl(
+        fun ({_, _, File} = S, Acc) ->
+                case lists:any(fun({_, _, F}) when F =:= File ->
+                                       true;
+                                  (_) -> false
+                               end, Acc) of
+                    true -> Acc;
+                    false -> [S | Acc]
+                end
+        end, [], SegRefs)).
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 

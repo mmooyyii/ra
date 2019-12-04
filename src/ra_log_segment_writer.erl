@@ -230,7 +230,8 @@ do_segment({ServerUId, StartIdx0, EndIdx, Tid},
                     % filter out any undefined segrefs
                     ClosedSegRefs = [ra_log_segment:segref(S)
                                      || S <- Closed0,
-                                        is_tuple(S)],
+                                        %% ensure we don't send undefined seg refs
+                                        is_tuple(ra_log_segment:segref(S))],
                     SegRefs = case ra_log_segment:segref(Segment) of
                                   undefined ->
                                       ClosedSegRefs;
