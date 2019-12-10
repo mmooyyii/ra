@@ -251,7 +251,10 @@ recover_wal(Dir, #conf{segment_writer = TblWriter} = Conf) ->
     % First we recover all the tables using a temporary lookup table.
     % Then we update the actual lookup tables atomically.
     _ = ets:new(ra_log_recover_mem_tables,
-                [set, named_table, {read_concurrency, true}, private]),
+                [set, named_table,
+                 {read_concurrency, true},
+                 {write_concurrency, true},
+                 private]),
     % compute all closed mem table lookups required so we can insert them
     % all at once, atomically
     % It needs to be atomic so that readers don't accidentally
