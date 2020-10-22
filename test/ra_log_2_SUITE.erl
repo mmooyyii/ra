@@ -75,7 +75,8 @@ init_per_testcase(TestCase, Config) ->
     UId = atom_to_binary(TestCase, utf8),
     application:stop(ra),
     application:start(ra),
-    yes = ra_directory:register_name(UId, self(), TestCase),
+    ok = ra_directory:register_name(default, UId, self(), undefined,
+                                    TestCase, TestCase),
     [{uid, UId}, {test_case, TestCase}, {wal_dir, PrivDir} | Config].
 
 end_per_testcase(_, _Config) ->
@@ -83,7 +84,7 @@ end_per_testcase(_, _Config) ->
 
 handle_overwrite(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     {ok, Log1} = ra_log:write([{1, 1, "value"},
                                         {2, 1, "value"}], Log0),
     receive
@@ -109,7 +110,7 @@ handle_overwrite(Config) ->
 
 receive_segment(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     % write a few entries
     Entries = [{I, 1, <<"value_", I:32/integer>>} || I <- lists:seq(1, 3)],
 
@@ -135,7 +136,7 @@ receive_segment(Config) ->
 read_one(Config) ->
     ra_counters:new(?FUNCTION_NAME, ?RA_COUNTER_FIELDS),
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          counter => ra_counters:fetch(?FUNCTION_NAME)}),
     Log1 = append_n(1, 2, 1, Log0),
     % ensure the written event is delivered
@@ -154,7 +155,7 @@ read_one(Config) ->
 
 take_after_overwrite_and_init(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     Log1 = write_and_roll_no_deliver(1, 5, 1, Log0),
     Log2 = deliver_written_log_events(Log1, 200),
     {[_, _, _, _], Log3} = ra_log:take(1, 5, Log2),
@@ -164,7 +165,7 @@ take_after_overwrite_and_init(Config) ->
     % ensure we cannot take stale entries
     {[{1, 2, _}], Log6} = ra_log:take(1, 5, Log5),
     _ = ra_log:close(Log6),
-    Log = ra_log:init(#{uid => UId}),
+    Log = ra_log_init(#{uid => UId}),
     {[{1, 2, _}], _} = ra_log:take(1, 5, Log),
     ok.
 
@@ -172,7 +173,7 @@ take_after_overwrite_and_init(Config) ->
 validate_sequential_reads(Config) ->
     UId = ?config(uid, Config),
     ra_counters:new(?FUNCTION_NAME, ?RA_COUNTER_FIELDS),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          counter => ra_counters:fetch(?FUNCTION_NAME),
                          max_open_segments => 100}),
     % write a few entries
@@ -224,7 +225,7 @@ validate_sequential_reads(Config) ->
 validate_reads_for_overlapped_writes(Config) ->
     UId = ?config(uid, Config),
     ra_counters:new(?FUNCTION_NAME, ?RA_COUNTER_FIELDS),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          counter => ra_counters:fetch(?FUNCTION_NAME)
                         }),
     % write a segment and roll 1 - 299 - term 1
@@ -251,7 +252,7 @@ validate_reads_for_overlapped_writes(Config) ->
 
 read_opt(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     % write a segment and roll 1 - 299 - term 1
     Num = 4096 * 2,
     Log1 = write_and_roll(1, Num, 1, Log0, 50),
@@ -270,7 +271,7 @@ read_opt(Config) ->
 
 written_event_after_snapshot(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          snapshot_interval => 1}),
     Log1 = ra_log:append({1, 1, <<"one">>}, Log0),
     Log1b = ra_log:append({2, 1, <<"two">>}, Log1),
@@ -305,7 +306,7 @@ written_event_after_snapshot(Config) ->
 updated_segment_can_be_read(Config) ->
     UId = ?config(uid, Config),
     ra_counters:new(?FUNCTION_NAME, ?RA_COUNTER_FIELDS),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          counter => ra_counters:fetch(?FUNCTION_NAME),
                          snapshot_interval => 1}),
     %% append a few entrie
@@ -328,7 +329,7 @@ updated_segment_can_be_read(Config) ->
 
 cache_overwrite_then_take(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     Log1 = write_n(1, 5, 1, Log0),
     Log2 = write_n(3, 4, 2, Log1),
     % validate only 3 entries can be read even if requested range is greater
@@ -337,7 +338,7 @@ cache_overwrite_then_take(Config) ->
 
 last_written_overwrite(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     Log1 = write_n(1, 5, 1, Log0),
     Log2 = assert_log_events(Log1, fun (L) ->
                                            {4, 1} == ra_log:last_written(L)
@@ -352,7 +353,7 @@ last_written_overwrite(Config) ->
 
 last_index_reset(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     Log1 = write_n(1, 5, 1, Log0),
     Pred = fun (L) ->
                    {4, 1} == ra_log:last_written(L)
@@ -370,7 +371,7 @@ last_index_reset(Config) ->
 
 last_index_reset_before_written(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     Log1 = write_n(1, 5, 1, Log0),
     {0, 0} = ra_log:last_written(Log1),
     5 = ra_log:next_index(Log1),
@@ -393,7 +394,7 @@ last_index_reset_before_written(Config) ->
 
 recovery(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     {0, 0} = ra_log:last_index_term(Log0),
     Log1 = write_and_roll(1, 10, 1, Log0),
     {9, 1} = ra_log:last_index_term(Log1),
@@ -410,7 +411,7 @@ recovery(Config) ->
     application:stop(ra),
     application:ensure_all_started(ra),
 
-    Log5 = ra_log:init(#{uid => UId}),
+    Log5 = ra_log_init(#{uid => UId}),
     {20, 3} = ra_log:last_index_term(Log5),
     Log6 = validate_read(1, 5, 1, Log5),
     Log7 = validate_read(5, 15, 2, Log6),
@@ -421,7 +422,7 @@ recovery(Config) ->
 
 recover_bigly(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     Log1 = write_n(1, 10000, 1, Log0),
     Pred = fun (L) ->
                    {9999, 1} =:= ra_log:last_index_term(L) andalso
@@ -432,7 +433,7 @@ recover_bigly(Config) ->
     application:stop(ra),
     application:ensure_all_started(ra),
     % ra_log_segment_writer:await(),
-    Log = ra_log:init(#{uid => UId}),
+    Log = ra_log_init(#{uid => UId}),
     {9999, 1} = ra_log:last_written(Log),
     {9999, 1} = ra_log:last_index_term(Log),
     ra_log:close(Log),
@@ -450,7 +451,7 @@ resend_write(Config) ->
                                    end),
     UId = ?config(uid, Config),
     timer:sleep(100),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     {0, 0} = ra_log:last_index_term(Log0),
     %% write 1..9
     Log1 = append_n(1, 10, 2, Log0),
@@ -481,7 +482,7 @@ resend_write(Config) ->
 
 wal_crash_recover(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          resend_window => 1}),
     Log1 = write_n(1, 50, 2, Log0),
     % crash the wal
@@ -506,7 +507,7 @@ wal_crash_recover(Config) ->
 
 wal_down_read_availability(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     Log1 = append_n(1, 10, 2, Log0),
     Log2 = assert_log_events(Log1, fun (L) ->
                                            {9, 2} == ra_log:last_written(L)
@@ -518,7 +519,7 @@ wal_down_read_availability(Config) ->
 
 wal_down_append_throws(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     ?assert(ra_log:can_write(Log0)),
     ok = supervisor:terminate_child(ra_log_wal_sup, ra_log_wal),
     ?assert(not ra_log:can_write(Log0)),
@@ -527,14 +528,14 @@ wal_down_append_throws(Config) ->
 
 wal_down_write_returns_error_wal_down(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     ok = supervisor:terminate_child(ra_log_wal_sup, ra_log_wal),
     {error, wal_down} = ra_log:write([{1,1,hi}], Log0),
     ok.
 
 detect_lost_written_range(Config) ->
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                               wal => ra_log_wal}),
     meck:new(ra_log_wal, [passthrough]),
     {0, 0} = ra_log:last_index_term(Log0),
@@ -566,7 +567,7 @@ detect_lost_written_range(Config) ->
     % validate no writes were lost and can be recovered
     {Entries, _} = ra_log:take(0, 20, Log5),
     ra_log:close(Log5),
-    Log = ra_log:init(#{uid => UId}),
+    Log = ra_log_init(#{uid => UId}),
     {19, 2} = ra_log:last_written(Log5),
     {RecoveredEntries, _} = ra_log:take(0, 20, Log),
     ?assert(length(Entries) =:= 20),
@@ -581,7 +582,7 @@ snapshot_installation(Config) ->
     % write snapshot for entry not seen
     % then write entries
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}), {0, 0} = ra_log:last_index_term(Log0),
+    Log0 = ra_log_init(#{uid => UId}), {0, 0} = ra_log:last_index_term(Log0),
     % Log1 = write_n(1, 10, 2, Log0),
     Log1 = assert_log_events(write_n(1, 10, 2, Log0),
                              fun (L) ->
@@ -635,7 +636,7 @@ append_after_snapshot_installation(Config) ->
     % write snapshot for entry not seen
     % then write entries
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}), {0, 0} = ra_log:last_index_term(Log0),
+    Log0 = ra_log_init(#{uid => UId}), {0, 0} = ra_log:last_index_term(Log0),
     % Log1 = write_n(1, 10, 2, Log0),
     Log1 = assert_log_events(write_n(1, 10, 2, Log0),
                              fun (L) ->
@@ -667,7 +668,7 @@ written_event_after_snapshot_installation(Config) ->
     %% immediately after a snapshot has been installed and the written event
     %% is for a past index.
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     {0, 0} = ra_log:last_index_term(Log0),
     %% write 10 entries
     %% but only process events for 9
@@ -702,7 +703,7 @@ written_event_after_snapshot_installation(Config) ->
 update_release_cursor(Config) ->
     % ra_log should initiate shapshot if segments can be released
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}),
+    Log0 = ra_log_init(#{uid => UId}),
     % beyond 128 limit - should create two segments
     Log1 = assert_log_events(append_and_roll_no_deliver(1, 150, 2, Log0),
                              fun (L) ->
@@ -768,7 +769,7 @@ update_release_cursor(Config) ->
 update_release_cursor_with_machine_version(Config) ->
     % ra_log should initiate shapshot if segments can be released
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          snapshot_interval => 64}),
     % beyond 128 limit - should create two segments
     Log1 = append_and_roll(1, 150, 2, Log0),
@@ -795,7 +796,7 @@ update_release_cursor_with_machine_version(Config) ->
 missed_closed_tables_are_deleted_at_next_opportunity(Config) ->
     % ra_log should initiate shapshot if segments can be released
     UId = ?config(uid, Config),
-    Log00 = ra_log:init(#{uid => UId}),
+    Log00 = ra_log_init(#{uid => UId}),
     % assert there are no segments at this point
     [] = find_segments(Config),
 
@@ -841,8 +842,10 @@ transient_writer_is_handled(Config) ->
     UId = ?config(uid, Config),
     Self = self(),
     _Pid = spawn(fun () ->
-                         ra_directory:register_name(<<"sub_proc">>, self(), sub_proc),
-                         Log0 = ra_log:init(#{uid => <<"sub_proc">>}),
+                         ra_directory:register_name(default, <<"sub_proc">>,
+                                                    self(), undefined,
+                                                    sub_proc, sub_proc),
+                         Log0 = ra_log_init(#{uid => <<"sub_proc">>}),
                          Log1 = append_n(1, 10, 2, Log0),
                          % ignore events
                          Log2 = deliver_all_log_events(Log1, 500),
@@ -854,13 +857,13 @@ transient_writer_is_handled(Config) ->
     end,
     application:stop(ra),
     application:start(ra),
-    _ = ra_log:init(#{uid => UId}),
+    _ = ra_log_init(#{uid => UId}),
     ok.
 
 open_segments_limit(Config) ->
     UId = ?config(uid, Config),
     Max = 3,
-    Log0 = ra_log:init(#{uid => UId,
+    Log0 = ra_log_init(#{uid => UId,
                          max_open_segments => Max}),
     % write a few entries
     Log1 = append_and_roll(1, 2000, 1, Log0),
@@ -880,7 +883,7 @@ external_reader(Config) ->
     %% The upper bound needs to be discovered by querying
     logger:set_primary_config(level, all),
     UId = ?config(uid, Config),
-    Log0 = ra_log:init(#{uid => UId}), {0, 0} = ra_log:last_index_term(Log0),
+    Log0 = ra_log_init(#{uid => UId}), {0, 0} = ra_log:last_index_term(Log0),
 
     Log1 = write_n(200, 220, 2,
                    write_and_roll(1, 200, 2, Log0)),
@@ -910,9 +913,9 @@ external_reader(Config) ->
                             end
                     end
             end),
-    {Log2, [{reply, {ok, UId, FstIdx, Segs}} | _]} =
-    ra_log:register_reader(Pid, Log1),
-    Pid ! {ra_log_reader_state, ra_log_reader:init(UId, FstIdx, 1, Segs)},
+    {Log2, [{reply, {ok, Reader}} | _]} =
+        ra_log:register_reader(Pid, Log1),
+    Pid ! {ra_log_reader_state, Reader},
     %% TODO: validate there is monitor effect
     receive
         {got, Evt, Entries} ->
@@ -1144,3 +1147,7 @@ create_snapshot_chunk(Config, #{index := Idx} =  Meta) ->
     {ok, Meta, ChunkSt} = ra_snapshot:begin_read(Sn2),
     {ok, Chunk, _} = ra_snapshot:read_chunk(ChunkSt, 1000000000, Sn2),
     Chunk.
+
+ra_log_init(Cfg) ->
+    %% augment with default system config
+    ra_log:init(Cfg#{system_config => ra_system:default_config()}).

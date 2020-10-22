@@ -20,7 +20,7 @@
 -spec start_link(ra_log_wal:wal_conf()) ->
     {ok, pid()} | ignore | {error, term()}.
 start_link(Conf) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Conf]).
+    supervisor:start_link(?MODULE, [Conf]).
 
 init([WalConf0]) ->
     SupFlags = #{strategy => one_for_one, intensity => 1, period => 5},

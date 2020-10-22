@@ -15,23 +15,36 @@
 %% Supervisor callbacks
 -export([init/1]).
 
--spec start_link(DataDir :: file:filename()) ->
+-spec start_link(ra_system:config()) ->
     {ok, pid()} | ignore | {error, term()}.
-start_link(DataDir) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [DataDir]).
+start_link(#{names := #{log_sup := Name}} = Cfg) ->
+    supervisor:start_link({local, Name}, ?MODULE, [Cfg]).
 
-init([DataDir]) ->
+init([#{data_dir := DataDir,
+        name := System,
+        names := #{wal := WalName,
+                   segment_writer := SegWriterName} = Names} = Cfg]) ->
+    %% TODO: make unnamed
     PreInit = #{id => ra_log_pre_init,
-                start => {ra_log_pre_init, start_link, [DataDir]}},
+                start => {ra_log_pre_init, start_link, [System]}},
     Meta = #{id => ra_log_meta,
-             start => {ra_log_meta, start_link, [DataDir]}},
+             start => {ra_log_meta, start_link, [Cfg]}},
     SegmentMaxEntries = application:get_env(ra, segment_max_entries, 4096),
-    SegWriterConf = #{data_dir => DataDir,
+    SegWriterConf = #{name => SegWriterName,
+                      system => System,
+                      data_dir => DataDir,
                       segment_conf => #{max_count => SegmentMaxEntries}},
     SegWriter = #{id => ra_log_segment_writer,
                   start => {ra_log_segment_writer, start_link,
                             [SegWriterConf]}},
-    WalConf = #{dir => ra_env:wal_data_dir()},
+    WalDir = case Cfg of
+                 #{wal_data_dir := D} -> D;
+                 _ -> DataDir
+             end,
+    WalConf = #{name => WalName,
+                names => Names,
+                dir => WalDir,
+                segment_writer => SegWriterName},
     SupFlags = #{strategy => one_for_all, intensity => 5, period => 5},
     WalSup = #{id => ra_log_wal_sup,
                type => supervisor,

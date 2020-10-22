@@ -9,15 +9,11 @@
 -behaviour(gen_server).
 
 -export([start_link/1,
-         accept_mem_tables/2,
          accept_mem_tables/3,
-         truncate_segments/2,
          truncate_segments/3,
-         my_segments/1,
          my_segments/2,
-         await/0,
          await/1,
-         overview/0
+         overview/1
         ]).
 
 -export([init/1,
@@ -29,6 +25,7 @@
          ]).
 
 -record(state, {data_dir :: file:filename(),
+                system :: atom(),
                 counter :: counters:counters_ref(),
                 segment_conf = #{} :: ra_log_segment:ra_log_segment_options()}).
 
@@ -56,44 +53,27 @@
 %%% API functions
 %%%===================================================================
 
-start_link(Config) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [Config], []).
-
-
-accept_mem_tables(Tables, WalFile) ->
-    accept_mem_tables(?MODULE, Tables, WalFile).
+start_link(#{name := Name} = Config) ->
+    gen_server:start_link({local, Name}, ?MODULE, [Config], []).
 
 accept_mem_tables(_SegmentWriter, [], undefined) ->
     ok;
 accept_mem_tables(SegmentWriter, Tables, WalFile) ->
     gen_server:cast(SegmentWriter, {mem_tables, Tables, WalFile}).
 
--spec truncate_segments(ra_uid(), ra_log:segment_ref()) -> ok.
-truncate_segments(Who, SegRef) ->
-    truncate_segments(?MODULE, Who, SegRef).
-
 -spec truncate_segments(atom() | pid(), ra_uid(), ra_log:segment_ref()) -> ok.
 truncate_segments(SegWriter, Who, SegRef) ->
     % truncate all closed segment files
     gen_server:cast(SegWriter, {truncate_segments, Who, SegRef}).
 
-%% returns the absolute filenames of all the segments
--spec my_segments(ra_uid()) -> [file:filename()].
-my_segments(Who) ->
-    my_segments(?MODULE, Who).
-
 -spec my_segments(atom() | pid(), ra_uid()) -> [file:filename()].
 my_segments(SegWriter, Who) ->
     gen_server:call(SegWriter, {my_segments, Who}, infinity).
 
--spec overview() -> #{}.
-overview() ->
-    gen_server:call(?MODULE, overview).
+-spec overview(atom() | pid()) -> #{}.
+overview(SegWriter) ->
+    gen_server:call(SegWriter, overview).
 
-
-% used to wait for the segment writer to finish processing anything in flight
-await() ->
-    await(?MODULE).
 
 await(SegWriter)  ->
     IsAlive = fun IsAlive(undefined) -> false;
@@ -114,11 +94,13 @@ await(SegWriter)  ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init([#{data_dir := DataDir} = Conf]) ->
+init([#{data_dir := DataDir,
+        system := System} = Conf]) ->
     process_flag(trap_exit, true),
     CRef = ra_counters:new(?MODULE, ?COUNTER_FIELDS),
     SegmentConf = maps:get(segment_conf, Conf, #{}),
-    {ok, #state{data_dir = DataDir,
+    {ok, #state{system = System,
+                data_dir = DataDir,
                 counter = CRef,
                 segment_conf = SegmentConf}}.
 
@@ -228,7 +210,8 @@ get_overview(#state{data_dir = Dir,
      }.
 
 do_segment({ServerUId, StartIdx0, EndIdx, Tid},
-           #state{data_dir = DataDir,
+           #state{system = System,
+                  data_dir = DataDir,
                   segment_conf = SegConf} = State) ->
     Dir = filename:join(DataDir, binary_to_list(ServerUId)),
 
@@ -268,7 +251,7 @@ do_segment({ServerUId, StartIdx0, EndIdx, Tid},
 
                     _ = ra_log_segment:close(Segment),
 
-                    ok = send_segments(ServerUId, Tid, SegRefs),
+                    ok = send_segments(System, ServerUId, Tid, SegRefs),
                     ok
             end
     end.
@@ -281,9 +264,9 @@ start_index(ServerUId, StartIdx0) ->
             StartIdx0
     end.
 
-send_segments(ServerUId, Tid, Segments) ->
+send_segments(System, ServerUId, Tid, Segments) ->
     Msg = {ra_log_event, {segments, Tid, Segments}},
-    case ra_directory:pid_of(ServerUId) of
+    case ra_directory:pid_of(System, ServerUId) of
         undefined ->
             ?DEBUG("ra_log_segment_writer: error sending "
                    "ra_log_event to: "

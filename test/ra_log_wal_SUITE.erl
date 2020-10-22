@@ -49,13 +49,18 @@ groups() ->
      {o_sync, [], all_tests()}
     ].
 
+-define(SYS, default).
+
 init_per_group(Group, Config) ->
     meck:unload(),
     application:ensure_all_started(sasl),
     application:load(ra),
     ok = application:set_env(ra, data_dir, ?config(priv_dir, Config)),
     ra_env:configure_logger(logger),
-    ra_directory:init(?config(priv_dir, Config)),
+    Dir = ?config(priv_dir, Config),
+    SysCfg = (ra_system:default_config())#{data_dir => Dir},
+    ra_system:store(SysCfg),
+    ra_directory:init(?SYS),
     ra_counters:init(),
     % application:ensure_all_started(lg),
     {SyncMethod, WriteStrat} =
@@ -68,6 +73,7 @@ init_per_group(Group, Config) ->
                 {datasync, Group}
         end,
     [{write_strategy, WriteStrat},
+     {sys_cfg, SysCfg},
      {sync_method,  SyncMethod} | Config].
 
 end_per_group(_, Config) ->
@@ -77,11 +83,17 @@ init_per_testcase(TestCase, Config) ->
     PrivDir = ?config(priv_dir, Config),
     G = ?config(write_strategy, Config),
     M = ?config(sync_method, Config),
+    Sys = ?config(sys_cfg, Config),
     Dir = filename:join([PrivDir, G, M, TestCase]),
-    {ok, Ets} = ra_log_ets:start_link(PrivDir),
+    {ok, Ets} = ra_log_ets:start_link(Sys),
+    ra_counters:init(),
     UId = atom_to_binary(TestCase, utf8),
-    yes = ra_directory:register_name(UId, self(), TestCase),
-    WalConf = #{dir => Dir, write_strategy => G,
+    ok = ra_directory:register_name(default, UId, self(), undefined,
+                                    TestCase, TestCase),
+    WalConf = #{dir => Dir,
+                name => ra_log_wal,
+                names => maps:get(names, Sys),
+                write_strategy => G,
                 max_size_bytes => ?MAX_SIZE_BYTES},
     _ = ets:new(ra_open_file_metrics, [named_table, public, {write_concurrency, true}]),
     _ = ets:new(ra_io_metrics, [named_table, public, {write_concurrency, true}]),
@@ -534,7 +546,7 @@ recover(Config) ->
      || Idx <- lists:seq(101, 200)],
     _ = await_written(WriterId, {101, 200, 2}),
     empty_mailbox(),
-    proc_lib:stop(ra_log_wal),
+    ok = proc_lib:stop(ra_log_wal),
     {ok, Pid} = ra_log_wal:start_link(Conf, []),
     % there should be no open mem tables after recovery as we treat any found
     % wal files as complete

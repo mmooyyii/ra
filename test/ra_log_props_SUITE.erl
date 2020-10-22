@@ -63,7 +63,8 @@ init_per_testcase(TestCase, Config) ->
     application:start(ra),
     % register(TestCase, self()),
     UId = atom_to_binary(TestCase, utf8),
-    yes = ra_directory:register_name(UId, self(), TestCase),
+    ok = ra_directory:register_name(default, UId, self(), undefined,
+                                    TestCase, TestCase),
     [{test_case, UId}, {wal_dir, Dir} | Config].
 
 %%------------------
@@ -162,7 +163,7 @@ write_prop(TestCase) ->
        begin
            {ok, Log0} = ra_log:write(
                           Entries,
-                          ra_log:init(#{uid => TestCase})),
+                          ra_log_init(#{uid => TestCase})),
            {LogEntries, Log} = ra_log:take(1, length(Entries), Log0),
            reset(Log),
            ?WHENFAIL(io:format("Entries taken from the log: ~p~nRa log state: ~p~n",
@@ -186,7 +187,7 @@ write_missing_entry_prop(TestCase) ->
        ?FORALL(
           {Head, _Entry, Tail}, slice_gen(Entries),
           begin
-              Log = ra_log:init(#{uid => TestCase}),
+              Log = ra_log_init(#{uid => TestCase}),
               Reply = ra_log:write(Head ++ Tail, Log),
               reset(Log),
               ?WHENFAIL(ct:pal("Reply: ~p~n", [Reply]),
@@ -208,7 +209,7 @@ write_overwrite_entry_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                 Entries,
-                                ra_log:init(#{uid => TestCase})),
+                                ra_log_init(#{uid => TestCase})),
               NewEntry = [{Idx, Term, <<"overwrite">>}],
               {ok, Log} = ra_log:write(NewEntry, Log0),
               {LogEntries, Log1} = ra_log:take(1, length(Entries), Log),
@@ -232,7 +233,7 @@ multi_write_missing_entry_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                 Head,
-                                ra_log:init(#{uid => TestCase})),
+                                ra_log_init(#{uid => TestCase})),
               Reply = ra_log:write(Tail, Log0),
               reset(Log0),
               ?WHENFAIL(io:format("Reply: ~p~n", [Reply]),
@@ -253,7 +254,7 @@ append_missing_entry_prop(TestCase) ->
           {Head, _Entry, Tail}, slice_gen(Entries),
           begin
               Log0 = append_all(Head,
-                               ra_log:init(#{uid => TestCase})),
+                               ra_log_init(#{uid => TestCase})),
               Failed = try
                            ra_log:append(hd(Tail), Log0),
                            false
@@ -278,7 +279,7 @@ write_index_starts_zero_prop(TestCase) ->
     ?FORALL(
        Entry, log_entry_but_one_zero_gen(),
        begin
-           Log = ra_log:init(#{uid => TestCase}),
+           Log = ra_log_init(#{uid => TestCase}),
            Reply = ra_log:write([Entry], Log),
            reset(Log),
            ?WHENFAIL(io:format("Reply: ~p~n", [Reply]),
@@ -302,7 +303,7 @@ append_prop(TestCase) ->
        begin
            Log0 = append_all(
                    Entries,
-                   ra_log:init(#{uid => TestCase})),
+                   ra_log_init(#{uid => TestCase})),
            {LogEntries, Log} = ra_log:take(1, length(Entries), Log0),
            reset(Log),
            ?WHENFAIL(io:format("Entries taken from the log: ~p~nRa log state: ~p~n",
@@ -322,7 +323,7 @@ append_overwrite_entry_prop(TestCase) ->
           begin
               {ok, Log} = ra_log:write(
                                 Entries,
-                                ra_log:init(#{uid => TestCase})),
+                                ra_log_init(#{uid => TestCase})),
               Failed = try
                            ra_log:append({Idx, Term, <<"overwrite">>}, Log),
                            false
@@ -343,7 +344,7 @@ append_index_starts_one_prop(TestCase) ->
     ?FORALL(
        Entry, log_entry_but_one_gen(),
        begin
-           Log = ra_log:init(#{uid => TestCase}),
+           Log = ra_log_init(#{uid => TestCase}),
            Failed = try
                        ra_log:append(Entry, Log),
                        false
@@ -367,7 +368,7 @@ take_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                  Entries,
-                                 ra_log:init(#{uid => TestCase})),
+                                 ra_log_init(#{uid => TestCase})),
               {Selected, Log} = ra_log:take(Start, Num, Log0),
               Expected = lists:sublist(Entries, Start, Num),
               reset(Log),
@@ -388,7 +389,7 @@ take_out_of_range_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                 Entries,
-                                ra_log:init(#{uid => TestCase})),
+                                ra_log_init(#{uid => TestCase})),
               {Reply, Log} = ra_log:take(Start, Num, Log0),
               reset(Log),
               ?WHENFAIL(io:format("Start: ~p Num: ~p~nReply: ~p~n", [Start, Num, Reply]),
@@ -407,7 +408,7 @@ fetch_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                 Entries,
-                                ra_log:init(#{uid => TestCase})),
+                                ra_log_init(#{uid => TestCase})),
               {Got, Log} = ra_log:fetch(Idx, Log0),
               reset(Log),
               ?WHENFAIL(io:format("Got: ~p Expected: ~p~n", [Got, Entry]),
@@ -426,7 +427,7 @@ fetch_out_of_range_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                 Entries,
-                                ra_log:init(#{uid => TestCase})),
+                                ra_log_init(#{uid => TestCase})),
               {Reply, Log} = ra_log:fetch(Start, Log0),
               reset(Log),
               ?WHENFAIL(io:format("Got: ~p Expected: undefined~n", [Reply]),
@@ -443,7 +444,7 @@ last_index_term_prop(TestCase) ->
        begin
            {ok, Log} = ra_log:write(
                              Entries,
-                             ra_log:init(#{uid => TestCase})),
+                             ra_log_init(#{uid => TestCase})),
            {LastIdx, LastTerm} = case Entries of
                                      [] ->
                                          {0, 0};
@@ -469,7 +470,7 @@ fetch_term_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                 Entries,
-                                ra_log:init(#{uid => TestCase})),
+                                ra_log_init(#{uid => TestCase})),
               {Term, Log} = ra_log:fetch_term(Idx, Log0),
               reset(Log),
               ?WHENFAIL(io:format("Got: ~p Expected: ~p~n", [Term, ExpectedTerm]),
@@ -488,7 +489,7 @@ fetch_out_of_range_term_prop(TestCase) ->
           begin
               {ok, Log0} = ra_log:write(
                                  Entries,
-                                 ra_log:init(#{uid => TestCase})),
+                                 ra_log_init(#{uid => TestCase})),
               {Term, Log} = ra_log:fetch_term(Start, Log0),
               reset(Log),
               ?WHENFAIL(io:format("Got: ~p for index: ~p~n", [Term, Start]),
@@ -505,7 +506,7 @@ next_index_term_prop(TestCase) ->
        begin
            {ok, Log} = ra_log:write(
                               Entries,
-                              ra_log:init(#{uid => TestCase})),
+                              ra_log_init(#{uid => TestCase})),
            {LastIdx, _LastTerm, _} = lists:last(Entries),
            Idx = ra_log:next_index(Log),
            reset(Log),
@@ -545,7 +546,7 @@ last_written_with_wal_prop(TestCase) ->
           begin
               flush(),
               All = build_action_list(Entries, Actions),
-              Log0 = ra_log:init(#{uid => TestCase}),
+              Log0 = ra_log_init(#{uid => TestCase}),
               {Log, Last, LastIdx, _Status} =
                   lists:foldl(fun({wait, Wait}, Acc) ->
                                       timer:sleep(Wait),
@@ -602,7 +603,7 @@ last_written_with_segment_writer_prop(TestCase) ->
               flush(),
               All = build_action_list(Entries, Actions),
               _ = supervisor:restart_child(ra_log_sup, ra_log_segment_writer),
-              Log0 = ra_log:init(#{uid => TestCase}),
+              Log0 = ra_log_init(#{uid => TestCase}),
               {Log, Last, LastIdx, _Status} =
                   lists:foldl(fun({wait, Wait}, Acc) ->
                                       timer:sleep(Wait),
@@ -651,7 +652,7 @@ last_written_with_crashing_segment_writer_prop(TestCase) ->
               flush(),
               All = build_action_list(Entries, Actions),
               _ = supervisor:restart_child(ra_log_sup, ra_log_segment_writer),
-              Log0 = ra_log:init(#{uid => TestCase,
+              Log0 = ra_log_init(#{uid => TestCase,
                                    resend_window => 2}),
               ra_log:take(1, 10, Log0),
               {Log, _Last, Ts} =
@@ -749,7 +750,7 @@ last_written_prop(TestCase) ->
           begin
               flush(),
               Actions = lists:zip3(Entries, Waits, Consumes),
-              Log0 = ra_log:init(#{uid => TestCase}),
+              Log0 = ra_log_init(#{uid => TestCase}),
               {Log, Last} = lists:foldl(fun({Entry, Wait, Consume}, {Acc0, Last0}) ->
                                                 {ok, Acc} = ra_log:write([Entry], Acc0),
                                                 timer:sleep(Wait),
@@ -838,3 +839,7 @@ reset(Log) ->
     supervisor:restart_child(ra_log_wal_sup, ra_log_segment_writer),
     supervisor:restart_child(ra_log_wal_sup, ra_log_wal),
     basic_reset(Log).
+
+ra_log_init(Cfg) ->
+    %% augment with default system config
+    ra_log:init(Cfg#{system_config => ra_system:default_config()}).
