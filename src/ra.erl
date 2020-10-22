@@ -341,6 +341,8 @@ start_cluster([#{cluster_name := ClusterName} | _] =
             fun (C) ->
                 case start_server(C) of
                     ok  -> true;
+                    {error, {shutdown, {failed_to_start_child, _, {already_started, _}}}} -> true;
+                    {error, {already_started, _}} -> true;
                     Err ->
                         ?ERR("ra: failed to start a server ~w, error: ~p~n",
                               [C, Err]),
