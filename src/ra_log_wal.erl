@@ -8,7 +8,7 @@
 -module(ra_log_wal).
 -behaviour(gen_batch_server).
 
--export([start_link/2,
+-export([start_link/1,
          write/5,
          write_batch/2,
          truncate_write/5,
@@ -122,7 +122,10 @@
                       compute_checksums => boolean(),
                       write_strategy => wal_write_strategy(),
                       sync_method => sync | datasync,
-                      recovery_chunk_size  => non_neg_integer()}.
+                      recovery_chunk_size  => non_neg_integer(),
+                      hibernate_after => non_neg_integer(),
+                      max_batch_size => non_neg_integer()
+                     }.
 
 -export_type([wal_conf/0,
               wal_write_strategy/0]).
@@ -194,10 +197,19 @@ force_roll_over(Wal) ->
 %% files. Once it has finished the current set of mem_tables it will delete the
 %% corresponding .wal file.
 
--spec start_link(Config :: wal_conf(), Options :: list()) ->
+-spec start_link(Config :: wal_conf()) ->
     {ok, pid()} | {error, {already_started, pid()}}.
-start_link(#{name := Name} = Config, Options0)
-  when is_list(Options0) andalso is_atom(Name) ->
+start_link(#{name := Name} = Config)
+  when is_atom(Name) ->
+    WalMaxBatchSize = maps:get(max_batch_size, Config,
+                               ?WAL_DEFAULT_MAX_BATCH_SIZE),
+    Options0 = case maps:get(hibernate_after, Config, undefined) of
+                   undefined ->
+                       [{max_batch_size, WalMaxBatchSize}];
+                   Hib ->
+                       [{hibernate_after, Hib},
+                        {max_batch_size, WalMaxBatchSize}]
+               end,
     Options = [{reversed_batch, true} | Options0],
     gen_batch_server:start_link({local, Name}, ?MODULE, Config, Options).
 

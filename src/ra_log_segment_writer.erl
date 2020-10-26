@@ -362,18 +362,18 @@ open_file(Dir, SegConf) ->
             %% a file was created by the segment header had not been
             %% synced. In this case it is typically safe to just delete
             %% and retry.
-            ?WARN("segment_writer: missing header in segment file ~s"
+            ?WARN("segment_writer: missing header in segment file ~s "
                   "deleting file and retrying recovery", [File]),
             _ = file:delete(File),
             open_file(Dir, SegConf);
         {error, enoent} ->
-            ?WARN("segment_writer: failed to open segment file ~s"
+            ?WARN("segment_writer: failed to open segment file ~s "
                   "error: enoent", [File]),
             enoent;
         Err ->
             %% Any other error should be considered a hard error or else
             %% we'd risk data loss
-            ?WARN("segment_writer: failed to open segment files~w"
+            ?WARN("segment_writer: failed to open segment file ~s "
                   "error: ~W. Exiting", [File, Err, 10]),
             exit(Err)
     end.

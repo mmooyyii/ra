@@ -113,7 +113,7 @@ basic_log_writes(Config) ->
     ok = logger:set_primary_config(level, all),
     Conf = ?config(wal_conf, Config),
     {UId, _} = WriterId = ?config(writer_id, Config),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     ok = ra_log_wal:write(WriterId, ra_log_wal, 12, 1, "value"),
     {12, 1, "value"} = await_written(WriterId, {12, 12, 1}),
     ok = ra_log_wal:write(WriterId, ra_log_wal, 13, 1, "value2"),
@@ -128,7 +128,7 @@ basic_log_writes(Config) ->
 same_uid_different_process(Config) ->
     Conf = ?config(wal_conf, Config),
     {UId, _} = WriterId = ?config(writer_id, Config),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     ok = ra_log_wal:write(WriterId, ra_log_wal, 12, 1, "value"),
     {12, 1, "value"} = await_written(WriterId, {12, 12, 1}),
     Self = self(),
@@ -182,8 +182,8 @@ test_write_many(Name, NumWrites, ComputeChecksums, BatchSize, DataSize, Config) 
     Dir = filename:join(Dir0, Name),
     Conf = Conf0#{dir => Dir},
     WriterId = ?config(writer_id, Config),
-    {ok, WalPid} = ra_log_wal:start_link(Conf#{compute_checksums => ComputeChecksums},
-                                         [{max_batch_size, BatchSize}]),
+    {ok, WalPid} = ra_log_wal:start_link(Conf#{compute_checksums => ComputeChecksums,
+                                               max_batch_size => BatchSize}),
     Data = crypto:strong_rand_bytes(DataSize),
     ok = ra_log_wal:write(WriterId, ra_log_wal, 0, 1, Data),
     timer:sleep(5),
@@ -237,7 +237,7 @@ write_many_by_many(Config) ->
     NumWriters = 100,
     Conf = ?config(wal_conf, Config),
     {_UId, _} = WriterId = ?config(writer_id, Config),
-    {ok, WalPid} = ra_log_wal:start_link(Conf#{compute_checksums => false}, []),
+    {ok, WalPid} = ra_log_wal:start_link(Conf#{compute_checksums => false}),
     Data = crypto:strong_rand_bytes(1024),
     ok = ra_log_wal:write(WriterId, ra_log_wal, 0, 1, Data),
     timer:sleep(5),
@@ -300,7 +300,7 @@ write_many_by_many(Config) ->
 overwrite(Config) ->
     Conf = ?config(wal_conf, Config),
     WriterId = ?config(writer_id, Config),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     Data = data,
     [ok = ra_log_wal:write(WriterId, ra_log_wal, I, 1, Data)
      || I <- lists:seq(1, 3)],
@@ -318,7 +318,7 @@ truncate_write(Config) ->
     % a trucated write does not need to follow the sequence
     Conf = ?config(wal_conf, Config),
     {UId, _} = WriterId = ?config(writer_id, Config),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     Data = crypto:strong_rand_bytes(1024),
     % write 1-3
     [ok = ra_log_wal:write(WriterId, ra_log_wal, I, 1, Data)
@@ -342,7 +342,7 @@ out_of_seq_writes(Config) ->
     % the wal will discard all subsequent writes until it receives the missing one
     Conf = ?config(wal_conf, Config),
     {_UId, _} = WriterId = ?config(writer_id, Config),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     Data = crypto:strong_rand_bytes(1024),
     % write 1-3
     [ok = ra_log_wal:write(WriterId, ra_log_wal, I, 1, Data)
@@ -398,7 +398,7 @@ roll_over(Config) ->
                 fun(_) -> ok end),
     % configure max_wal_size_bytes
     {ok, Pid} = ra_log_wal:start_link(Conf#{max_size_bytes => 1024 * NumWrites,
-                                            segment_writer => self()}, []),
+                                            segment_writer => self()}),
     % write enough entries to trigger roll over
     Data = crypto:strong_rand_bytes(1024),
     [begin
@@ -438,7 +438,7 @@ roll_over_entry_limit(Config) ->
                 fun(_) -> ok end),
     % configure max_wal_entries
     {ok, Pid} = ra_log_wal:start_link(Conf#{max_entries => 1000,
-                                            segment_writer => self()}, []),
+                                            segment_writer => self()}),
     % write enough entries to trigger roll over
     Data = crypto:strong_rand_bytes(1024),
     [begin
@@ -481,13 +481,13 @@ recover_truncated_write(Config) ->
     meck:new(ra_log_segment_writer, [passthrough]),
     meck:expect(ra_log_segment_writer, await,
                 fun(_) -> ok end),
-    {ok, _Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, _Pid} = ra_log_wal:start_link(Conf),
     [ok = ra_log_wal:write(WriterId, ra_log_wal, Idx, 1, Data)
      || Idx <- lists:seq(1, 3)],
     ok = ra_log_wal:truncate_write(WriterId, ra_log_wal, 9, 1, Data),
     empty_mailbox(),
     proc_lib:stop(ra_log_wal),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     % how can we better wait for recovery to finish?
     timer:sleep(1000),
     [{UId, _, 9, 9, _}] =
@@ -499,7 +499,7 @@ recover_truncated_write(Config) ->
 sys_get_status(Config) ->
     Conf = ?config(wal_conf, Config),
     {_UId, _} = ?config(writer_id, Config),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     {_, _, _, [_, _, _, _, [_, _ ,S]]} = sys:get_status(ra_log_wal),
     #{write_strategy := _} = S,
     proc_lib:stop(Pid),
@@ -513,12 +513,12 @@ recover_after_roll_over(Config) ->
                   max_size_bytes => byte_size(Data) * 75},
     meck:new(ra_log_segment_writer, [passthrough]),
     meck:expect(ra_log_segment_writer, await, fun(_) -> ok end),
-    {ok, _} = ra_log_wal:start_link(Conf, []),
+    {ok, _} = ra_log_wal:start_link(Conf),
     [ok = ra_log_wal:write(WriterId, ra_log_wal, Idx, 1, Data)
      || Idx <- lists:seq(1, 100)],
     empty_mailbox(),
     proc_lib:stop(ra_log_wal),
-    {ok, Wal} = ra_log_wal:start_link(Conf, []),
+    {ok, Wal} = ra_log_wal:start_link(Conf),
     % how can we better wait for recovery to finish?
     timer:sleep(1000),
     ?assert(erlang:is_process_alive(Wal)),
@@ -537,7 +537,7 @@ recover(Config) ->
     Data = <<42:256/unit:8>>,
     meck:new(ra_log_segment_writer, [passthrough]),
     meck:expect(ra_log_segment_writer, await, fun(_) -> ok end),
-    {ok, _Wal} = ra_log_wal:start_link(Conf, []),
+    {ok, _Wal} = ra_log_wal:start_link(Conf),
     [ok = ra_log_wal:write(WriterId, ra_log_wal, Idx, 1, Data)
      || Idx <- lists:seq(1, 100)],
     _ = await_written(WriterId, {1, 100, 1}),
@@ -547,7 +547,7 @@ recover(Config) ->
     _ = await_written(WriterId, {101, 200, 2}),
     empty_mailbox(),
     ok = proc_lib:stop(ra_log_wal),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     % there should be no open mem tables after recovery as we treat any found
     % wal files as complete
     [] = ets:lookup(ra_log_open_mem_tables, UId),
@@ -584,14 +584,14 @@ recover_overwrite_in_same_batch(Config) ->
     Conf = Conf0#{segment_writer => spawn(fun () -> ok end)},
     meck:new(ra_log_segment_writer, [passthrough]),
     meck:expect(ra_log_segment_writer, await, fun(_) -> ok end),
-    {ok, _Wal} = ra_log_wal:start_link(Conf, []),
+    {ok, _Wal} = ra_log_wal:start_link(Conf),
     ok = ra_log_wal:write(WriterId, ra_log_wal, 1, 1, <<"data1">>),
     ok = ra_log_wal:write(WriterId, ra_log_wal, 1, 2, <<"data2">>),
     _ = await_written(WriterId, {1, 1, 2}),
     ra_log_wal:force_roll_over(ra_log_wal),
     empty_mailbox(),
     proc_lib:stop(ra_log_wal),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     % there should be no open mem tables after recovery as we treat any found
     % wal files as complete
     [] = ets:lookup(ra_log_open_mem_tables, UId),
@@ -621,7 +621,7 @@ recover_with_small_chunks(Config) ->
     Data = <<42:256/unit:8>>,
     meck:new(ra_log_segment_writer, [passthrough]),
     meck:expect(ra_log_segment_writer, await, fun(_) -> ok end),
-    {ok, _Wal} = ra_log_wal:start_link(Conf, []),
+    {ok, _Wal} = ra_log_wal:start_link(Conf),
     [ok = ra_log_wal:write(WriterId, ra_log_wal, Idx, 1, Data)
      || Idx <- lists:seq(1, 100)],
     _ = await_written(WriterId, {1, 100, 1}),
@@ -630,7 +630,7 @@ recover_with_small_chunks(Config) ->
      || Idx <- lists:seq(101, 200)],
     _ = await_written(WriterId, {101, 200, 2}),
     proc_lib:stop(ra_log_wal),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
 
     % there should be no open mem tables after recovery as we treat any found
     % wal files as complete
@@ -666,9 +666,9 @@ recover_empty(Config) ->
     meck:new(ra_log_segment_writer, [passthrough]),
     meck:expect(ra_log_segment_writer, await,
                 fun(_) -> ok end),
-    {ok, _Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, _Pid} = ra_log_wal:start_link(Conf),
     proc_lib:stop(ra_log_wal),
-    {ok, Pid} = ra_log_wal:start_link(Conf, []),
+    {ok, Pid} = ra_log_wal:start_link(Conf),
     proc_lib:stop(Pid),
     meck:unload(),
     ok.

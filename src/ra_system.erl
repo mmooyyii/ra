@@ -1,5 +1,6 @@
 -module(ra_system).
 
+-include("ra.hrl").
 -export([
          default_config/0,
          derive_names/1,
@@ -42,10 +43,27 @@
               names/0
               ]).
 
+-spec default_config() -> ra_system:config().
 default_config() ->
+    SegmentMaxEntries = application:get_env(ra, segment_max_entries, 4096),
+    WalMaxSizeBytes = application:get_env(ra, wal_max_size_bytes,
+                                       ?WAL_DEFAULT_MAX_SIZE_BYTES),
+    WalComputeChecksums = application:get_env(ra, wal_compute_checksums, true),
+    WalMaxBatchSize = application:get_env(ra, wal_max_batch_size,
+                                          ?WAL_DEFAULT_MAX_BATCH_SIZE),
+    WalMaxEntries = application:get_env(ra, wal_max_entries, undefined),
+    WalWriteStrategy = application:get_env(ra, wal_write_strategy, default),
+    WalSyncMethod = application:get_env(ra, wal_sync_method, datasync),
     #{name => default,
       data_dir => ra_env:data_dir(),
       wal_data_dir => ra_env:data_dir(),
+      wal_max_size_bytes => WalMaxSizeBytes,
+      wal_compute_checksums => WalComputeChecksums,
+      wal_max_batch_size => WalMaxBatchSize,
+      wal_max_entries => WalMaxEntries,
+      wal_write_strategy => WalWriteStrategy,
+      wal_sync_method => WalSyncMethod,
+      segment_max_entries => SegmentMaxEntries,
       names =>
       #{wal => ra_log_wal,
         wal_sup => ra_log_wal_sup,
