@@ -560,12 +560,12 @@ last_written_with_wal_prop(TestCase) ->
                                       ra_log_wal:force_roll_over(ra_log_wal),
                                       Acc;
                                  (stop_wal, {Acc0, Last0, LastIdx, wal_up}) ->
-                                      ok = supervisor:terminate_child(ra_log_wal_sup, ra_log_wal),
+                                      ok = supervisor:terminate_child(wal_sup(), ra_log_wal),
                                       {Acc0, Last0, LastIdx, wal_down};
                                  (stop_wal, {_, _, _, wal_down} = Acc) ->
                                       Acc;
                                  (start_wal, {Acc0, Last0, LastIdx, wal_down}) ->
-                                      supervisor:restart_child(ra_log_wal_sup, ra_log_wal),
+                                      supervisor:restart_child(wal_sup(), ra_log_wal),
                                       {Acc0, Last0, LastIdx, wal_up};
                                  (start_wal, {_, _, _, wal_up} = Acc) ->
                                       Acc;
@@ -836,9 +836,15 @@ basic_reset(Log) ->
     ra_log:close(Log).
 
 reset(Log) ->
-    supervisor:restart_child(ra_log_wal_sup, ra_log_segment_writer),
-    supervisor:restart_child(ra_log_wal_sup, ra_log_wal),
+    WalSup = wal_sup(),
+    supervisor:restart_child(WalSup, ra_log_segment_writer),
+    supervisor:restart_child(WalSup, ra_log_wal),
     basic_reset(Log).
+
+wal_sup() ->
+    [WalSup] = [P || {ra_log_wal_sup, P, _, _}
+                     <- supervisor:which_children(ra_log_sup)],
+    WalSup.
 
 ra_log_init(Cfg) ->
     %% augment with default system config

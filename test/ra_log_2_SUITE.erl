@@ -512,7 +512,9 @@ wal_down_read_availability(Config) ->
     Log2 = assert_log_events(Log1, fun (L) ->
                                            {9, 2} == ra_log:last_written(L)
                                    end),
-    ok = supervisor:terminate_child(ra_log_wal_sup, ra_log_wal),
+    [SupPid] = [P || {ra_log_wal_sup, P, _, _}
+                     <- supervisor:which_children(ra_log_sup)],
+    ok = supervisor:terminate_child(SupPid, ra_log_wal),
     {Entries, _} = ra_log:take(0, 10, Log2),
     ?assert(length(Entries) =:= 10),
     ok.
@@ -521,7 +523,9 @@ wal_down_append_throws(Config) ->
     UId = ?config(uid, Config),
     Log0 = ra_log_init(#{uid => UId}),
     ?assert(ra_log:can_write(Log0)),
-    ok = supervisor:terminate_child(ra_log_wal_sup, ra_log_wal),
+    [SupPid] = [P || {ra_log_wal_sup, P, _, _}
+                     <- supervisor:which_children(ra_log_sup)],
+    ok = supervisor:terminate_child(SupPid, ra_log_wal),
     ?assert(not ra_log:can_write(Log0)),
     ?assertExit(wal_down, ra_log:append({1,1,hi}, Log0)),
     ok.
@@ -529,7 +533,9 @@ wal_down_append_throws(Config) ->
 wal_down_write_returns_error_wal_down(Config) ->
     UId = ?config(uid, Config),
     Log0 = ra_log_init(#{uid => UId}),
-    ok = supervisor:terminate_child(ra_log_wal_sup, ra_log_wal),
+    [SupPid] = [P || {ra_log_wal_sup, P, _, _}
+                     <- supervisor:which_children(ra_log_sup)],
+    ok = supervisor:terminate_child(SupPid, ra_log_wal),
     {error, wal_down} = ra_log:write([{1,1,hi}], Log0),
     ok.
 
@@ -553,8 +559,10 @@ detect_lost_written_range(Config) ->
 
     % restart WAL to ensure lose the transient state keeping track of
     % each writer's last written index
-    ok = supervisor:terminate_child(ra_log_wal_sup, ra_log_wal),
-    {ok, _} = supervisor:restart_child(ra_log_wal_sup, ra_log_wal),
+    [SupPid] = [P || {ra_log_wal_sup, P, _, _}
+                     <- supervisor:which_children(ra_log_sup)],
+    ok = supervisor:terminate_child(SupPid, ra_log_wal),
+    {ok, _} = supervisor:restart_child(SupPid, ra_log_wal),
 
     % WAL recovers
     meck:unload(ra_log_wal),

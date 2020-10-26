@@ -9,8 +9,8 @@
 -behaviour(gen_server).
 
 -export([start_link/1,
-         give_away/1,
-         delete_tables/1]).
+         give_away/2,
+         delete_tables/2]).
 
 -export([init/1,
          handle_call/3,
@@ -32,13 +32,13 @@
 start_link(#{names := #{log_ets := Name}} = Cfg) ->
     gen_server:start_link({local, Name}, ?MODULE, [Cfg], []).
 
--spec give_away(ets:tid()) -> true.
-give_away(Tid) ->
-    ets:give_away(Tid, whereis(?MODULE), undefined).
+-spec give_away(ra_system:names(), ets:tid()) -> true.
+give_away(#{log_ets := Name}, Tid) ->
+    ets:give_away(Tid, whereis(Name), undefined).
 
--spec delete_tables([ets:tid()]) -> ok.
-delete_tables(Tids) ->
-    gen_server:cast(?MODULE, {delete_tables, Tids}).
+-spec delete_tables(ra_system:names(), [ets:tid()]) -> ok.
+delete_tables(#{log_ets := Name}, Tids) ->
+    gen_server:cast(Name, {delete_tables, Tids}).
 
 %%%===================================================================
 %%% gen_server callbacks

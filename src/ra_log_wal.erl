@@ -659,7 +659,7 @@ open_mem_table(#conf{names = Names}, UId) ->
     ServerName = ra_directory:name_of(Names, UId),
     Tid = ets:new(ServerName, [set, {read_concurrency, true}, public]),
     % immediately give away ownership to ets process
-    true = ra_log_ets:give_away(Tid),
+    true = ra_log_ets:give_away(Names, Tid),
     Tid.
 
 start_batch(#state{conf = #conf{counter = CRef}} = State) ->

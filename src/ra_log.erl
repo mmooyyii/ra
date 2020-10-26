@@ -393,7 +393,7 @@ handle_event({written, {FromIdx, _, _}},
            [LogId, FromIdx, Expected]),
     {resend_from(Expected, State0), []};
 handle_event({segments, Tid, NewSegs},
-             #?MODULE{cfg = #cfg{uid = _UId},
+             #?MODULE{cfg = #cfg{names = Names},
                       reader = Reader0,
                       readers = Readers} = State0) ->
     ClosedTables = ra_log_reader:closed_mem_tables(Reader0),
@@ -416,7 +416,7 @@ handle_event({segments, Tid, NewSegs},
                  true = ra_log_reader:delete_closed_mem_table_object(Reader, ClosedTbl),
                  T
              end || {_, _, _, _, T} = ClosedTbl <- Obsolete],
-            ok = ra_log_ets:delete_tables(TidsToDelete)
+            ok = ra_log_ets:delete_tables(Names, TidsToDelete)
     end,
 
     case Readers of
@@ -701,9 +701,9 @@ register_reader(Pid, #?MODULE{cfg = #cfg{uid = UId,
                               reader = Reader,
                               readers = Readers} = State) ->
     SegRefs = ra_log_reader:segment_refs(Reader),
-    Reader = ra_log_reader:init(UId, Dir, Idx, 1, SegRefs, Names),
+    NewReader = ra_log_reader:init(UId, Dir, Idx, 1, SegRefs, Names),
     {State#?MODULE{readers = [Pid | Readers]},
-     [{reply, {ok, Reader}},
+     [{reply, {ok, NewReader}},
       {monitor, process, log, Pid}]}.
 
 readers(#?MODULE{readers = Readers}) ->

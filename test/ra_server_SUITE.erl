@@ -114,16 +114,16 @@ setup_log() ->
     ok = meck:new(ra_snapshot, [passthrough]),
     ok = meck:new(ra_machine, [passthrough]),
     meck:expect(ra_log, init, fun(C) -> ra_log_memory:init(C) end),
-    meck:expect(ra_log_meta, store, fun (U, K, V) ->
+    meck:expect(ra_log_meta, store, fun (_, U, K, V) ->
                                             put({U, K}, V), ok
                                     end),
-    meck:expect(ra_log_meta, store_sync, fun (U, K, V) ->
+    meck:expect(ra_log_meta, store_sync, fun (_, U, K, V) ->
                                                  put({U, K}, V), ok
                                          end),
-    meck:expect(ra_log_meta, fetch, fun(U, K) ->
+    meck:expect(ra_log_meta, fetch, fun(_, U, K) ->
                                             get({U, K})
                                     end),
-    meck:expect(ra_log_meta, fetch, fun (U, K, D) ->
+    meck:expect(ra_log_meta, fetch, fun (_, U, K, D) ->
                                             ra_lib:default(get({U, K}), D)
                                     end),
     meck:expect(ra_snapshot, begin_accept,
@@ -239,9 +239,9 @@ recover_restores_cluster_changes(_Config) ->
     % ok = meck:new(ra_log, [passthrough]),
     meck:expect(ra_log, init, fun (_) -> Log0 end),
     meck:expect(ra_log_meta, fetch,
-                fun (_, last_applied, 0) ->
+                fun (_, _, last_applied, 0) ->
                         element(1, ra_log:last_index_term(Log0));
-                    (_, _, Def) ->
+                    (_, _, _, Def) ->
                         Def
                 end),
 
