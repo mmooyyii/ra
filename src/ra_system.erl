@@ -2,6 +2,7 @@
 
 -include("ra.hrl").
 -export([
+         start/1,
          default_config/0,
          derive_names/1,
          store/1,
@@ -43,11 +44,15 @@
               names/0
               ]).
 
+-spec start(ra_system:config()) -> supervisor:startchild_ret().
+start(Config) ->
+    ra_systems_sup:start_system(Config).
+
 -spec default_config() -> ra_system:config().
 default_config() ->
     SegmentMaxEntries = application:get_env(ra, segment_max_entries, 4096),
     WalMaxSizeBytes = application:get_env(ra, wal_max_size_bytes,
-                                       ?WAL_DEFAULT_MAX_SIZE_BYTES),
+                                          ?WAL_DEFAULT_MAX_SIZE_BYTES),
     WalComputeChecksums = application:get_env(ra, wal_compute_checksums, true),
     WalMaxBatchSize = application:get_env(ra, wal_max_batch_size,
                                           ?WAL_DEFAULT_MAX_BATCH_SIZE),
@@ -88,7 +93,6 @@ derive_names(SysName) when is_atom(SysName) ->
       closed_mem_tbls => derive(SysName, <<"log_closed_mem_tables">>),
       segment_writer => derive(SysName, <<"segment_writer">>),
       server_sup => derive(SysName, <<"server_sup_sup">>),
-      system_sup => derive(SysName, <<"system_sup">>),
       directory => derive(SysName, <<"directory">>),
       directory_rev => derive(SysName, <<"directory_reverse">>)
      }.

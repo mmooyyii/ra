@@ -72,7 +72,8 @@ register_name(System, UId, Pid, ParentPid, ServerName, ClusterName)
   when is_atom(System) ->
     register_name(get_names(System), UId, Pid,
                   ParentPid, ServerName, ClusterName);
-register_name(#{directory := Directory,
+register_name(#{
+                directory := Directory,
                 directory_rev := DirRev}, UId, Pid, ParentPid,
               ServerName, ClusterName) ->
     true = ets:insert(Directory, {UId, Pid, ParentPid, ServerName,

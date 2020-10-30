@@ -1085,7 +1085,7 @@ validate_rolled_reads(_Config) ->
 
 find_segments(Config) ->
     UId = ?config(uid, Config),
-    ServerDataDir = ra_env:server_data_dir(UId),
+    ServerDataDir = ra_env:server_data_dir(default, UId),
     filelib:wildcard(filename:join(ServerDataDir, "*.segment")).
 
 empty_mailbox() ->

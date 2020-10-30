@@ -247,7 +247,8 @@ init(Config0 = #{id := Id, cluster_name := ClusterName}) ->
     process_flag(trap_exit, true),
     Key = ra_lib:ra_server_id_to_local_name(Id),
     Config = #{counter := Counter,
-               system_config := SysConf} = maps:merge(config_defaults(Key), Config0),
+               system_config := SysConf} = maps:merge(config_defaults(Key),
+                                                      Config0),
     #{cluster := Cluster} = ServerState = ra_server:init(Config),
     LogId = ra_server:log_id(ServerState),
     UId = ra_server:uid(ServerState),
@@ -831,7 +832,8 @@ terminate(Reason, StateName,
                  server_state = ServerState} = State) ->
     ?INFO("~s: terminating with ~w in state ~w~n",
           [log_id(State), Reason, StateName]),
-    #{names := #{log_meta := MetaName} = Names} =
+    #{names := #{server_sup := SrvSup,
+                 log_meta := MetaName} = Names} =
         ra_server:system_config(ServerState),
     UId = uid(State),
     _ = ra_server:terminate(ServerState, Reason),
@@ -851,8 +853,7 @@ terminate(Reason, StateName,
                               receive
                                   {'DOWN', Ref, _, _, _} ->
                                       ok = supervisor:terminate_child(
-                                             ra_server_sup_sup,
-                                             Parent)
+                                             SrvSup, Parent)
                               after 5000 ->
                                         ok
                               end

@@ -51,23 +51,29 @@ restart_server(System, {RaName, Node}, AddConfig) ->
     rpc:call(Node, ?MODULE, restart_server_rpc,
              [System, {RaName, Node}, AddConfig]).
 
-start_server_rpc(System, UId, Config) ->
-    %% check that the node isn't already registered
-    case ra_directory:name_of(System, UId) of
+start_server_rpc(System, UId, Config0) ->
+    case ra_system:fetch(System) of
         undefined ->
-            case ra_system:lookup_name(System, server_sup) of
-                {ok, Name} ->
-                    supervisor:start_child({Name, node()}, [Config]);
-                Err ->
-                    Err
-            end;
-        Name ->
-            case whereis(Name) of
+            {error, system_not_started};
+        SysCfg ->
+            Config = Config0#{system_config => SysCfg},
+            %% check that the server isn't already registered
+            case ra_directory:name_of(System, UId) of
                 undefined ->
-                    {error, not_new};
-                Pid ->
-                    {error, {already_started, Pid}}
-              end
+                    case ra_system:lookup_name(System, server_sup) of
+                        {ok, Name} ->
+                            supervisor:start_child({Name, node()}, [Config]);
+                        Err ->
+                            Err
+                    end;
+                Name ->
+                    case whereis(Name) of
+                        undefined ->
+                            {error, not_new};
+                        Pid ->
+                            {error, {already_started, Pid}}
+                    end
+            end
     end.
 
 restart_server_rpc(System, {RaName, Node}, AddConfig)
@@ -130,7 +136,8 @@ delete_server_rpc(System, RaName) ->
     case ra_system:fetch(System) of
         undefined ->
             {error, system_not_started};
-        #{names := #{log_meta := Meta,
+        #{data_dir := _SysDir,
+          names := #{log_meta := Meta,
                      server_sup := SrvSup} = Names} ->
             ?INFO("Deleting server ~w and its data directory.~n",
                   [RaName]),
@@ -138,7 +145,7 @@ delete_server_rpc(System, RaName) ->
             UId = ra_directory:uid_of(Names, RaName),
             Pid = ra_directory:where_is(Names, RaName),
             ra_log_meta:delete(Meta, UId),
-            Dir = ra_env:server_data_dir(UId),
+            Dir = ra_env:server_data_dir(System, UId),
             _ = supervisor:terminate_child(SrvSup, UId),
             _ = delete_data_directory(Dir),
             _ = ra_directory:unregister_name(Names, UId),
@@ -187,7 +194,7 @@ recover_config(System, RaName) ->
         undefined ->
             {error, name_not_registered};
         UId ->
-            Dir = ra_env:server_data_dir(UId),
+            Dir = ra_env:server_data_dir(System, UId),
             case ra_directory:where_is(System, UId) of
                 Pid when is_pid(Pid) ->
                     case is_process_alive(Pid) of

@@ -511,9 +511,9 @@ snapshot_installation(Config) ->
      end || N <- lists:seq(2500, 6000)],
     {ok, _, _} = ra:process_command(Leader, deq),
 
-    N1Dir = ra_env:server_data_dir(ra_directory:uid_of(default, N1)),
-    N2Dir = ra_env:server_data_dir(ra_directory:uid_of(default, N2)),
-    N3Dir = ra_env:server_data_dir(ra_directory:uid_of(default, N3)),
+    N1Dir = ra_env:server_data_dir(default, ra_directory:uid_of(default, N1)),
+    N2Dir = ra_env:server_data_dir(default, ra_directory:uid_of(default, N2)),
+    N3Dir = ra_env:server_data_dir(default, ra_directory:uid_of(default, N3)),
 
     %% start the down node again, catchup should involve sending a snapshot
     ok = ra:restart_server(Down),

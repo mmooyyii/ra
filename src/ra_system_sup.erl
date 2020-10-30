@@ -18,15 +18,11 @@
 -export([init/1]).
 
 
-% start_link(#{names := #{system_sup := Name}} = Config) ->
-%     supervisor:start_link({local, Name}, ?MODULE, Config).
 start_link(Config) ->
     supervisor:start_link(?MODULE, Config).
 
 init(#{data_dir := DataDir,
-       names := #{log_sup := _LogSup,
-                  log_ets := _LogEts,
-                  server_sup := _SrvSup}} = Cfg) ->
+       names := _Names} = Cfg) ->
     case ra_lib:make_dir(DataDir) of
         ok ->
             %% the ra log ets process is supervised by the system to keep mem tables

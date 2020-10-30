@@ -221,7 +221,7 @@ do_segment({ServerUId, StartIdx0, EndIdx, Tid},
                   "not exist~n", [Dir]),
             %% clean up the tables for this process
             _ = ets:delete(Tid),
-            _ = clean_closed_mem_tables(ServerUId, Tid),
+            _ = clean_closed_mem_tables(System, ServerUId, Tid),
             ok;
         Segment0 ->
             case append_to_segment(ServerUId, Tid, StartIdx0, EndIdx,
@@ -273,20 +273,21 @@ send_segments(System, ServerUId, Tid, Segments) ->
                    "~s. Error: ~s",
                    [ServerUId, "No Pid"]),
             _ = ets:delete(Tid),
-            _ = clean_closed_mem_tables(ServerUId, Tid),
+            _ = clean_closed_mem_tables(System, ServerUId, Tid),
             ok;
         Pid ->
             Pid ! Msg,
             ok
     end.
 
-clean_closed_mem_tables(UId, Tid) ->
-    Tables = ets:lookup(ra_log_closed_mem_tables, UId),
+clean_closed_mem_tables(System, UId, Tid) ->
+    {ok, ClosedTbl} = ra_system:lookup_name(System, closed_mem_tbls),
+    Tables = ets:lookup(ClosedTbl, UId),
     [begin
          ?DEBUG("~w: cleaning closed table for '~s' range: ~b-~b~n",
                 [?MODULE, UId, From, To]),
          %% delete the entry in the closed table lookup
-         true = ets:delete_object(ra_log_closed_mem_tables, O)
+         true = ets:delete_object(ClosedTbl, O)
      end || {_, _, From, To, T} = O <- Tables, T == Tid].
 
 append_to_segment(UId, Tid, StartIdx0, EndIdx, Seg, State) ->
@@ -312,7 +313,7 @@ append_to_segment(UId, Tid, Idx, EndIdx, Seg0, Closed, State) ->
                     %% to the directory having been deleted.
                     %% clear close mem tables here
                     _ = ets:delete(Tid),
-                    _ = clean_closed_mem_tables(UId, Tid),
+                    _ = clean_closed_mem_tables(State#state.system, UId, Tid),
                     undefined;
                 Seg ->
                     ok = counters:add(State#state.counter, ?C_SEGMENTS, 1),

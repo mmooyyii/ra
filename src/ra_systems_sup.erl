@@ -25,10 +25,13 @@ start_link() ->
 
 -spec start_system(ra_system:config()) -> supervisor:startchild_ret().
 start_system(#{name := Name,
-               data_dir := Dir} = Config) ->
+               names := _Names,
+               data_dir := Dir} = Config) when is_atom(Name) ->
     ?INFO("starting Ra system: ~s in directory: ~s", [Name, Dir]),
+    %% TODO: fill in config defaults?
+    %% TODO: validate configuration
     ok = ra_system:store(Config),
-    RaSystemsSup = #{id => ra_system_sup,
+    RaSystemsSup = #{id => Name,
                      type => supervisor,
                      start => {ra_system_sup, start_link, [Config]}},
     supervisor:start_child(?MODULE, RaSystemsSup).

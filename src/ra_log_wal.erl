@@ -228,6 +228,8 @@ init(#{dir := Dir} = Conf0) ->
                  open_mem_tbls := OpenTblsName,
                  closed_mem_tbls := ClosedTblsName} = Names} =
         merge_conf_defaults(Conf0),
+    ?NOTICE("WAL: ~s init, open tbls: ~w, closed tbls: ~w",
+            [WalName, OpenTblsName, ClosedTblsName]),
     process_flag(trap_exit, true),
     % given ra_log_wal is effectively a fan-in sink it is likely that it will
     % at times receive large number of messages from a large number of
@@ -284,6 +286,7 @@ handle_op({cast, WalCmd}, State) ->
     handle_msg(WalCmd, State).
 
 recover_wal(Dir, #conf{segment_writer = SegWriter,
+                       open_mem_tbls_name = OpenTbl,
                        closed_mem_tbls_name = ClosedTbl,
                        recovery_chunk_size = RecoveryChunkSize} = Conf) ->
     % ensure configured directory exists
@@ -331,8 +334,8 @@ recover_wal(Dir, #conf{segment_writer = SegWriter,
                                          file_num = FileNum}),
     % we can now delete all open mem tables as should be covered by recovered
     % closed tables
-    Open = ets:tab2list(ra_log_open_mem_tables),
-    true = ets:delete_all_objects(ra_log_open_mem_tables),
+    Open = ets:tab2list(OpenTbl),
+    true = ets:delete_all_objects(OpenTbl),
     % delete all open ets tables
     [true = ets:delete(Tid) || {_, _, _, Tid} <- Open],
     true = ets:delete(RecoverTid),
@@ -543,7 +546,7 @@ roll_over(OpnMemTbls, #state{wal = Wal0, file_num = Num0,
     Num = Num0 + 1,
     Fn = ra_lib:zpad_filename("", "wal", Num),
     NextFile = filename:join(Dir, Fn),
-    ?DEBUG("wal: opening new file ~ts~n", [Fn]),
+    ?DEBUG("wal: opening new file ~ts ~w", [Fn, OpnMemTbls]),
     %% if this is the first wal since restart randomise the first
     %% max wal size to reduce the likelyhood that each erlang node will
     %% flush mem tables at the same time
@@ -698,7 +701,7 @@ complete_batch(#state{batch = undefined} = State) ->
     State;
 complete_batch(#state{batch = #batch{waiting = Waiting,
                                      writes = NumWrites},
-                      conf = Cfg
+                      conf = #conf{open_mem_tbls_name = OpnTbl} = Cfg
                       } = State00) ->
     % TS = os:system_time(microsecond),
     State0 = flush_pending(State00),
@@ -718,7 +721,7 @@ complete_batch(#state{batch = #batch{waiting = Waiting,
                          %% came to be processed in the same batch.
                          %% Unlikely, but possible
                          true = ets:insert(Tid, lists:reverse(Inserts)),
-                         true = ets:update_element(ra_log_open_mem_tables, UId,
+                         true = ets:update_element(OpnTbl, UId,
                                                    [{2, TblStart}, {3, To}]),
                          Pid ! {ra_log_event, {written, {From, To, Term}}},
                          ok
