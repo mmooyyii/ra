@@ -311,7 +311,7 @@ server_restart_after_application_restart(Config) ->
     ok = start_cluster(ClusterName, [ServerId]),
     ok= enqueue(ServerId, msg1),
     application:stop(ra),
-    application:start(ra),
+    ra:start(),
     %% start system
     {ok, _} = ra_system:start(?config(sys_cfg, Config)),
     %
@@ -398,7 +398,7 @@ recover_after_kill(Config) ->
     % timer:sleep(100),
     exit(whereis(Name), kill),
     application:stop(ra),
-    application:start(ra),
+    ra:start(),
     {ok, _} = ra_system:start(?config(sys_cfg, Config)),
     ra:restart_server(?SYS, ServerId),
     ra:members(ServerId),

@@ -76,7 +76,7 @@ execute_state_machine() ->
   ClusterId = ra_dbg,
   Config = #{name => ClusterId},
   Machine = {module, ra_fifo, Config},
-  application:ensure_all_started(ra),
+  ra:start(),
   {ok, _, _} = ra:start_cluster(default, ClusterId, Machine, Nodes),
 
   {ok, _, _} = ra:process_command(ra_dbg, {enqueue, self(), 1, <<"1">>}),

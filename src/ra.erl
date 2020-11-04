@@ -100,7 +100,7 @@
 %% @end
 -spec start() -> ok.
 start() ->
-    {ok, _} = application:ensure_all_started(ra),
+    {ok, _} = start([]),
     ok.
 
 %% @doc Starts the ra application.
@@ -114,7 +114,9 @@ start(Params) when is_list(Params) ->
     _ = application:load(ra),
     [ok = application:set_env(ra, Param, Value)
      || {Param, Value} <- Params],
-    application:ensure_all_started(ra).
+    Res = application:ensure_all_started(ra),
+    _ = ra_system:start_default(),
+    Res.
 
 %% @doc Starts the ra application with a provided data directory.
 %% The same as ra:start([{data_dir, dir}])

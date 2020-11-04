@@ -73,8 +73,7 @@ end_per_group(tests, Config) ->
 init_per_testcase(TestCase, Config) ->
     PrivDir = ?config(priv_dir, Config),
     UId = atom_to_binary(TestCase, utf8),
-    application:stop(ra),
-    application:start(ra),
+    ra:start(),
     ok = ra_directory:register_name(default, UId, self(), undefined,
                                     TestCase, TestCase),
     [{uid, UId}, {test_case, TestCase}, {wal_dir, PrivDir} | Config].
@@ -409,7 +408,7 @@ recovery(Config) ->
     Log4 = assert_log_events(Log3, Pred, 2000),
     ra_log:close(Log4),
     application:stop(ra),
-    application:ensure_all_started(ra),
+    ra:start(),
 
     Log5 = ra_log_init(#{uid => UId}),
     {20, 3} = ra_log:last_index_term(Log5),
@@ -431,8 +430,7 @@ recover_bigly(Config) ->
     Log2 = assert_log_events(Log1, Pred, 2000),
     ra_log:close(Log2),
     application:stop(ra),
-    application:ensure_all_started(ra),
-    % ra_log_segment_writer:await(),
+    ra:start(),
     Log = ra_log_init(#{uid => UId}),
     {9999, 1} = ra_log:last_written(Log),
     {9999, 1} = ra_log:last_index_term(Log),
@@ -863,8 +861,7 @@ transient_writer_is_handled(Config) ->
     receive done -> ok
     after 2000 -> exit(timeout)
     end,
-    application:stop(ra),
-    application:start(ra),
+    ra:start(),
     _ = ra_log_init(#{uid => UId}),
     ok.
 

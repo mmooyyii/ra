@@ -3,6 +3,7 @@
 -include("ra.hrl").
 -export([
          start/1,
+         start_default/0,
          default_config/0,
          derive_names/1,
          store/1,
@@ -47,6 +48,10 @@
 -spec start(ra_system:config()) -> supervisor:startchild_ret().
 start(Config) ->
     ra_systems_sup:start_system(Config).
+
+-spec start_default() -> supervisor:startchild_ret().
+start_default() ->
+    start(ra_system:default_config()).
 
 -spec default_config() -> ra_system:config().
 default_config() ->
@@ -123,6 +128,4 @@ lookup_name(System, Key) when is_atom(System) ->
 derive(N, Suff) ->
     S = atom_to_binary(N, utf8),
     binary_to_atom(<<"ra_", S/binary, "_", Suff/binary>>, utf8).
-
-
 

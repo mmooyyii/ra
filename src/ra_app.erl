@@ -12,16 +12,16 @@
 -export([stop/1]).
 
 start(_Type, _Args) ->
-    Ret = ra_sup:start_link(),
-    %% start default Ra system
-    DefaultRet = ra_systems_sup:start_system(
-                   ra_system:default_config()),
-    case element(1, DefaultRet) of
-        ok ->
-            Ret;
-        _ ->
-            DefaultRet
-    end.
+    ra_sup:start_link().
+    % %% start default Ra system
+    % DefaultRet = ra_systems_sup:start_system(
+    %                ra_system:default_config()),
+    % case element(1, DefaultRet) of
+    %     ok ->
+    %         Ret;
+    %     _ ->
+    %         DefaultRet
+    % end.
 
 stop(_State) ->
     ok.

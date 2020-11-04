@@ -28,7 +28,6 @@ start_system(#{name := Name,
                names := _Names,
                data_dir := Dir} = Config) when is_atom(Name) ->
     ?INFO("starting Ra system: ~s in directory: ~s", [Name, Dir]),
-    %% TODO: fill in config defaults?
     %% TODO: validate configuration
     ok = ra_system:store(Config),
     RaSystemsSup = #{id => Name,
