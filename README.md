@@ -1,3 +1,5 @@
+# adapt to erlang 20.3
+
 # A Raft Implementation for Erlang and Elixir
 
 Ra is a [Raft](https://raft.github.io/) implementation
