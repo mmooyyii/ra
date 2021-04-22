@@ -1112,16 +1112,16 @@ handle_effect(leader, {send_snapshot, To, {SnapState, Id, Term}}, _,
                                            ChunkSize, SnapState) of
                             _ -> ok
                         catch
-                            C:timeout:S ->
+                            C:timeout ->
                                 %% timeout is ok as we've already blocked
                                 %% for a while
-                                erlang:raise(C, timeout, S);
-                            C:E:S ->
+                                erlang:raise(C, timeout, erlang:get_stacktrace());
+                            C:E ->
                                 %% insert an arbitrary pause here as a primitive
                                 %% throttling operation as certain errors
                                 %% happen quickly
                                 ok = timer:sleep(5000),
-                                erlang:raise(C, E, S)
+                                erlang:raise(C, E, erlang:get_stacktrace())
                         end
                 end),
     %% update the peer state so that no pipelined entries are sent during

@@ -1,4 +1,8 @@
-# adapt to erlang 20.3
+# support erlang 20.3
+```bash
+mv logger.hrl_ $ERL_LIBS/kernel-5.4.3/include/logger.hrl
+rebar3 compile
+``` 
 
 # A Raft Implementation for Erlang and Elixir
 
